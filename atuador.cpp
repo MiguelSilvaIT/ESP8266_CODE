@@ -1,16 +1,22 @@
 #include "atuador.h"
-#include "filesystem.h"
 #include "config.h"
 #include "time_manager.h"
 #include "utils.h"
 
 
-void addAtuador(const char* path, JsonDocument& doc) {
+String addAtuador(const char* path, JsonDocument& doc) {
   // Verifica se o arquivo existe; se não, cria o arquivo
 
+    int pin = doc["pin"].as<int>();
+    if (isPinUsed(path, pin)) {
+        Serial.println("Pin is already in use");
+        return "Pin is already in use";  // Stop adding the new actuator if the pin is used
+    }
+
+
   int lastId = readLastAtuadorId();  // Lê o último ID usado
-  lastId++;                         // Incrementa o ID
-  doc["id"] = lastId;               // Atualiza o ID no documento JSON
+  lastId++;                          // Incrementa o ID
+  doc["id"] = lastId;                // Atualiza o ID no documento JSON
 
 
 
@@ -18,9 +24,9 @@ void addAtuador(const char* path, JsonDocument& doc) {
     File file = LittleFS.open(path, "w");
     if (!file) {
       Serial.println("Failed to open file for writing");
-      return;
+      return "Failed to open file for writing";
     }
-    file.println("ID;Nome;Tipo;Pin;ModoOperacao;Valor;DataCriacao;DispositivoId;UnidadeId;UltimaObs");
+    file.println("ID;Nome;Tipo;Pin;ModoOperacao;Valor;DataCriacao;DispositivoId;UnidadeId");
     file.close();  // Fecha o arquivo recém-criado
   }
 
@@ -28,28 +34,39 @@ void addAtuador(const char* path, JsonDocument& doc) {
   File file = LittleFS.open(path, "a");
   if (!file) {
     Serial.println("Failed to open file for appending");
-    return;
+    return "Failed to open file for appending";
   }
 
   // Formata os dados recebidos em uma string
-  String dataString = String(doc["id"].as<int>()) + ";" + String((const char*)doc["nome"]) + ";" + 
-                       String((const char*)doc["tipo"]) + ";" + String((const char*)doc["pin"]) + ";" +
-                       String((const char*)doc["modoOperacao"]) + ";" + String((float)doc["valor"]) + ";" +
-                       String((const char*)doc["dtCriacao"]) + ";" + String((int)doc["dispositivoId"]) + ";" +
-                       String((const char*)doc["unidadeId"]) + ";-1";
+  String dataString = String(doc["id"].as<int>()) + ";" + String((const char*)doc["nome"]) + ";" 
+                      + String((const char*)doc["tipo"]) + ";" + String((const char*)doc["pin"]) + ";"
+                      + String((const char*)doc["modoOperacao"]) + ";" + String((float)doc["valor"]) + ";" 
+                      + String((const char*)doc["dtCriacao"]) + ";" + String((int)doc["dispositivoId"]) + ";" 
+                      + String((const char*)doc["unidadeId"]);
 
 
   // Anexa a string formatada ao arquivo
   if (file.println(dataString)) {
     Serial.println("Atuador data appended");
+    
     updateLastAtuadorId(lastId);
+    
   } else {
     Serial.println("Append failed");
+    return "Append failed";
   }
 
+  
+
   file.close();  // Fecha o arquivo após a operação de anexar
+
+  setAtuadorValue(doc["pin"].as<int>(), (float)doc["valor"], (const char*)doc["modoOperacao"]);
+
+  return "Append Succesfull";
+
 }
 
+//Lê o ficheiro dos atuadores
 void readAtuador(const char* path) {
   Serial.printf("Reading file: %s\n", path);
 
@@ -109,13 +126,9 @@ void updateLastAtuadorId(int lastId) {
 }
 
 String getAllAtuadorData(const char* path) {
-  
-      if (!updateAtuadorValues(atuadores_path)) {
-        Serial.println("Failed to update atuador values");
-        return "{Failed to update atuador values}";  // Retorna um objeto JSON vazio em caso de falha
-    }
-  
-  
+
+
+
   File file = LittleFS.open(path, "r");
   if (!file) {
     Serial.println("Failed to open file for reading");
@@ -135,31 +148,31 @@ String getAllAtuadorData(const char* path) {
 
 
   while (file.available()) {
-     
+
 
     String line = file.readStringUntil('\n');
     std::vector<String> data = split(line, ';');  // Assumindo que seus dados estão separados por ponto-e-vírgula
     JsonObject obj = array.createNestedObject();
-    
+
     obj["Id"] = data[0].toInt();
     obj["Nome"] = data[1];
     obj["Tipo"] = data[2];
     obj["Pin"] = data[3];
     obj["ModoOperacao"] = data[4];
-    obj["Valor"] = data[5].toFloat();
+    obj["Valor"] = digitalRead(data[3].toInt());
     obj["DataCriacao"] = data[6];
     obj["DispositivoId"] = data[7].toInt();
     obj["Unidade"] = data[8];
-    obj["DataUltimaObs"] = data[9];
-    
-  
+    obj["DataUltimaObs"] = getFormattedTime();
+
+
 
     String unit = obj["DataUltimaObs"].as<String>();
 
     if (!unit.isEmpty() && unit[unit.length() - 1] == '\r') {
-      unit.remove(unit.length() - 1); // Removes the last character if it's a carriage return
-      obj["DataUltimaObs"] = unit; // Update the JSON object
-}
+      unit.remove(unit.length() - 1);  // Removes the last character if it's a carriage return
+      obj["DataUltimaObs"] = unit;     // Update the JSON object
+    }
   }
   file.close();
 
@@ -170,102 +183,130 @@ String getAllAtuadorData(const char* path) {
 
 
 float readAtuadorValue(int pin, String tipo) {
-    if (tipo == "Analogico") {
-        return 1023 - analogRead(pin);
-    } else if (tipo == "Digital") {
-        return digitalRead(pin);
-    }
-    return 0;  // Retorna 0 como default se o tipo de atuador não for reconhecido
+  if (tipo == "Analogico") {
+    Serial.print("Leitura Analogica do PIN --> ");
+    Serial.println(pin);
+    return 1023 - analogRead(pin);
+  } else if (tipo == "Digital") {
+    Serial.print("Leitura Digital do PIN --> ");
+    Serial.println(pin);
+    return digitalRead(pin);
+  }
+  return 0;  // Retorna 0 como default se o tipo de atuador não for reconhecido
 }
 
-bool updateAtuadorValues(const char* path) {
-    File file = LittleFS.open(path, "r+");
-    if (!file) {
-        Serial.println("Failed to open file for reading and writing");
-        return false;
-    }
+bool setAtuadorValue(int pin, float value, String tipo) {
+  Serial.print("Setting actuator value on pin: ");
+  Serial.print(pin);
+  Serial.print(" with value: ");
+  Serial.print(value);
+  Serial.print(" and type: ");
+  Serial.println(tipo);
 
-    String output = "";
-    String line = file.readStringUntil('\n');  // Ler e manter o cabeçalho
-    output += line + "\n";
-
-    while (file.available()) {
-        line = file.readStringUntil('\n');
-        std::vector<String> data = split(line, ';');
-     
-
-        int pin = data[3].toInt(); // Assumindo que o pin está na coluna 4
-        String tipo = data[4]; // Assumindo que o tipo está na coluna 5
-        float novoValor = readAtuadorValue(pin, tipo); // Lê o novo valor do atuador
-
-        
-
-        // Atualiza a linha com o novo valor
-        data[5] = String(novoValor);
-        data[9] = getFormattedTime();
-        for (int i = 0; i < data.size(); i++) {
-            output += data[i];
-            if (i < data.size() - 1) output += ";";
-        }
-        output += "\n";
-    }
-
-    file.seek(0);  // Retorna ao início do arquivo
-    file.write((const uint8_t*)output.c_str(), output.length()); // Escreve os dados atualizados
-    file.close();  // Fecha o arquivo
+  if (tipo == "Analogico") {
+    analogWrite(pin, (int)value);  // ESP8266 does support analogWrite on certain pins
     return true;
+  } else if (tipo == "Digital") {
+    digitalWrite(pin, (int)value > 0 ? HIGH : LOW);
+    return true;
+  }
+  
+  return false;  // If type is neither 'Analogico' nor 'Digital'
+  
 }
-
 
 bool updateAtuadorById(const char* path, int atuadorId, const AtuadorData& newData) {
-    File file = LittleFS.open(path, "r+");
-    if (!file) {
-        Serial.println("Failed to open file for reading and writing");
-        return false;
+  File file = LittleFS.open(path, "r+");
+  if (!file) {
+    Serial.println("Failed to open file for reading and writing");
+    return false;
+  }
+
+  String output;
+  String line = file.readStringUntil('\n');  // Ler e manter o cabeçalho
+  output += line + "\n";
+
+  bool updated = false;
+  while (file.available()) {
+    line = file.readStringUntil('\n');
+    std::vector<String> data = split(line, ';');
+    if (data.size() < 10) continue;  // Verifica se todas as partes necessárias estão presentes
+
+    int currentId = data[0].toInt();
+    if (currentId == atuadorId) {
+      // Atualiza os dados do atuador
+      data[1] = newData.nome;
+      data[2] = newData.tipo;
+      data[3] = String(newData.pin);
+      data[4] = newData.modoOperacao;
+      data[8] = newData.unidade;
+      data[9] = getFormattedTime();  // Atualiza a data da última observação
+
+      updated = true;
     }
 
-    String output;
-    String line = file.readStringUntil('\n'); // Ler e manter o cabeçalho
+    // Reconstrói a linha
+    line = String();
+    for (int i = 0; i < data.size(); i++) {
+      line += data[i] + (i < data.size() - 1 ? ";" : "");
+    }
     output += line + "\n";
+  }
 
-    bool updated = false;
-    while (file.available()) {
-        line = file.readStringUntil('\n');
-        std::vector<String> data = split(line, ';');
-        if (data.size() < 10) continue; // Verifica se todas as partes necessárias estão presentes
-
-        int currentId = data[0].toInt();
-        if (currentId == atuadorId) {
-            // Atualiza os dados do atuador
-            data[1] = newData.nome;
-            data[2] = newData.tipo;
-            data[3] = String(newData.pin);
-            data[4] = newData.modoOperacao;
-            data[8] = newData.unidade;
-            data[9] = getFormattedTime(); // Atualiza a data da última observação
-
-            updated = true;
-        }
-
-        // Reconstrói a linha
-        line = String();
-        for (int i = 0; i < data.size(); i++) {
-            line += data[i] + (i < data.size() - 1 ? ";" : "");
-        }
-        output += line + "\n";
-    }
-
-    if (!updated) {
-        Serial.println("Atuador ID not found for update.");
-        file.close();
-        return false;
-    }
-
-    // Reescreve os dados atualizados no arquivo
-    file.seek(0);
-    file.write((const uint8_t*)output.c_str(), output.length());
+  if (!updated) {
+    Serial.println("Atuador ID not found for update.");
     file.close();
-    return true;
+    return false;
+  }
+
+  // Reescreve os dados atualizados no arquivo
+  file.seek(0);
+  file.write((const uint8_t*)output.c_str(), output.length());
+  file.close();
+  return true;
 }
 
+bool deleteAtuadorById(const char* path, int atuadorId) {
+  File file = LittleFS.open(path, "r+");
+  if (!file) {
+    Serial.println("Failed to open file for reading and writing");
+    return false;
+  }
+
+  String output;
+  String line;
+  bool found = false;
+
+  while (file.available()) {
+    line = file.readStringUntil('\n');
+    // Remove '\r' se estiver presente no final da linha
+    if (line.endsWith("\r")) {
+      line = line.substring(0, line.length() - 1);
+    }
+
+    int currentId = line.substring(0, line.indexOf(';')).toInt();  // Assumindo que o ID seja sempre o primeiro item antes do ';'
+    if (currentId != atuadorId) {
+      output += line + "\n";
+    } else {
+      found = true;  // Encontrou a linha a ser deletada
+    }
+  }
+
+  file.close();  // Fecha o arquivo para resetar o cursor antes de reabri-lo para escrita
+
+  if (!found) {
+    return false;  // Se não encontrar o ID, retorna falso
+  }
+
+  // Reabre o arquivo para escrita e limpa seu conteúdo
+  file = LittleFS.open(path, "w");
+  if (!file) {
+    Serial.println("Failed to open file for writing");
+    return false;
+  }
+
+  file.print(output);  // Escreve a nova saída sem a linha do ID
+  file.close();        // Fecha o arquivo após a operação de escrita
+  return true;
+}
 

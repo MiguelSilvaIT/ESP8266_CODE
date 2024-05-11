@@ -3,6 +3,8 @@
 #include "sensor.h"
 #include "atuador.h"
 #include "config.h"
+#include "utils.h"
+
 
 void setupWiFi() {
   WiFiManager wifiManager;
@@ -56,18 +58,16 @@ void configureWebServer(AsyncWebServer& server) {
         }
         jsonData = "";  // Clear the jsonData for the next message
 
-        addSensor(sensors_path, doc);
+        String result = addSensor(sensors_path, doc);
+        if (result.startsWith("Failed")) {
+          request->send(500, "application/json", "{\"message\":\"" + result + "\"}");
+        } else {
+          request->send(200, "application/json", "{\"message\":\"" + result + "\"}");
+        }
       }
 
 
       readSensor(sensors_path);
-
-
-
-      AsyncWebServerResponse* response = request->beginResponse(200, "application/json", "{\"message\":\"Sensor added successfully\"}");
-
-      //addCORSHeaders(response);
-      request->send(response);
     });
 
 
@@ -75,15 +75,8 @@ void configureWebServer(AsyncWebServer& server) {
 
 
 
-  server.onNotFound([](AsyncWebServerRequest* request) {
-    Serial.println("OPTIONS PRE-FLIGHT REQUEST RECEIVED");
-    Serial.println(request->method());
-    if (request->method() == 64) {
-      request->send(200);
-    } else {
-      request->send(404, "application/json", "{\"message\":\"Chegou mas não encontrei nada\"}");
-    }
-  });
+
+
 
   server.on("/clearSensorData", HTTP_DELETE, [](AsyncWebServerRequest* request) {
     clearSensorData(sensors_path);  // Chama a função para limpar os dados
@@ -128,17 +121,30 @@ void configureWebServer(AsyncWebServer& server) {
       }
     });
 
-  server.on(
-    "/put", HTTP_PUT, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
-      Serial.println("Received PUT request");
-      // Restante do código...
-    });
+
+  server.on("/ip", HTTP_GET, [](AsyncWebServerRequest* request) {
+    request->send(200, "text/plain", WiFi.localIP().toString());
+  });
 
 
   //Obter todos os sensores
   server.on("/sensors", HTTP_GET, [](AsyncWebServerRequest* request) {
     String sensorData = getAllSensorData(sensors_path);  // Substitua pelo caminho correto do arquivo
     request->send(200, "application/json", sensorData);
+  });
+
+  server.on("/deleteSensor", HTTP_DELETE, [](AsyncWebServerRequest* request) {
+    if (!request->hasParam("id")) {
+      request->send(400, "application/json", "{\"message\":\"Sensor ID missing\"}");
+      return;
+    }
+    int sensorId = request->getParam("id")->value().toInt();  // Extract the sensor ID from the request
+
+    if (deleteSensorById(sensors_path, sensorId)) {
+      request->send(200, "application/json", "{\"message\":\"Sensor deleted successfully\"}");
+    } else {
+      request->send(404, "application/json", "{\"message\":\"Sensor not found\"}");
+    }
   });
 
 
@@ -174,18 +180,19 @@ void configureWebServer(AsyncWebServer& server) {
         }
         jsonData = "";  // Clear the jsonData for the next message
 
-        addAtuador(atuadores_path, doc);
+        String result = addAtuador(atuadores_path, doc);  // Call the modified addAtuador function
+        if (result == "Pin is already in use") {
+          request->send(409, "application/json", "{\"message\":\"" + result + "\"}");
+        } else if (result == "Failed to open file for writing" || result == "Failed to open file for appending" || result == "Append failed") {
+          request->send(500, "application/json", "{\"message\":\"" + result + "\"}");
+        } else {
+          request->send(200, "application/json", "{\"message\":\"" + result + "\"}");
+        }
       }
-
-
-      readAtuador(atuadores_path);
-
-
 
       AsyncWebServerResponse* response = request->beginResponse(200, "application/json", "{\"message\":\"Atuador added successfully\"}");
 
-      //addCORSHeaders(response);
-      request->send(response);
+      readAtuador(atuadores_path);
     });
 
   server.on("/clearAtuadorData", HTTP_DELETE, [](AsyncWebServerRequest* request) {
@@ -193,23 +200,108 @@ void configureWebServer(AsyncWebServer& server) {
     request->send(200, "application/json", "{\"message\":\"Atuador data cleared successfully\"}");
   });
 
-  server.on("/deleteSensor", HTTP_DELETE, [](AsyncWebServerRequest* request) {
-    if (!request->hasParam("id")) {
-      request->send(400, "application/json", "{\"message\":\"Sensor ID missing\"}");
-      return;
-    }
-    int sensorId = request->getParam("id")->value().toInt();  // Extract the sensor ID from the request
+  server.on("/toggleAtuador", HTTP_POST, [](AsyncWebServerRequest* request) {
+    int atuadorPin = 0;
+    int novoValor = 0;
+    String modoOperacao = "";
 
-    if (deleteSensorById(sensors_path, sensorId)) {
-      request->send(200, "application/json", "{\"message\":\"Sensor deleted successfully\"}");
+    if (request->hasParam("pin") && request->hasParam("valor") && request->hasParam("modoOperacao")) {
+      atuadorPin = request->getParam("pin")->value().toInt();
+      novoValor = request->getParam("valor")->value().toInt();
+      modoOperacao = request->getParam("modoOperacao")->value();
+
+      // Call function to toggle actuator state
+      if (setAtuadorValue(atuadorPin, novoValor, modoOperacao)) {
+        request->send(200, "application/json", "{\"message\":\"Actuator state updated successfully\"}");
+      } else {
+        request->send(500, "application/json", "{\"message\":\"Failed to update actuator state\"}");
+      }
     } else {
-      request->send(404, "application/json", "{\"message\":\"Sensor not found\"}");
+      request->send(400, "application/json", "{\"message\":\"Missing parameters\"}");
     }
   });
 
 
 
+  server.on("/deleteAtuador", HTTP_DELETE, [](AsyncWebServerRequest* request) {
+    if (!request->hasParam("id")) {
+      request->send(400, "application/json", "{\"message\":\"Atuador ID missing\"}");
+      return;
+    }
+    int atuadorId = request->getParam("id")->value().toInt();  // Extract the atuador ID from the request
 
+    if (deleteAtuadorById(atuadores_path, atuadorId)) {
+      request->send(200, "application/json", "{\"message\":\"Atuador deleted successfully\"}");
+    } else {
+      request->send(404, "application/json", "{\"message\":\"Atuador not found\"}");
+    }
+  });
+
+  //--FIM SECÇÃO ATUADORES--
+
+
+  //--DISPOSITICO--
+
+  server.on(
+    "/esp/config", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+      static String jsonData;
+      for (size_t i = 0; i < len; i++) {
+        jsonData += (char)data[i];
+      }
+      if (index + len == total) {
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, jsonData);
+        if (error) {
+          request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
+          jsonData = "";
+          return;
+        }
+
+
+        jsonData = "";  // Clear the buffer for the next message
+
+        // Handle the configuration data
+        if (!handleESPConfig(doc)) {
+          request->send(500, "application/json", "{\"message\":\"Failed to store configuration\"}");
+        } else {
+          request->send(200, "application/json", "{\"message\":\"Configuration saved successfully\"}");
+        }
+      }
+    });
+
+
+  server.onNotFound([](AsyncWebServerRequest* request) {
+    Serial.println("OPTIONS PRE-FLIGHT REQUEST RECEIVED");
+    Serial.println(request->method());
+    if (request->method() == 64) {
+      request->send(200);
+    } else {
+      request->send(404, "application/json", "{\"message\":\"Chegou mas não encontrei nada\"}");
+    }
+  });
 
   server.serveStatic("/", LittleFS, "/");
+}
+
+void postAllData(const char* url, const char* configPath, const char* sensorPath, const char* actuatorPath) {
+    WiFiClient wifiClient;
+    HTTPClient httpClient;
+
+    // Preparar o corpo da requisição com os dados JSON
+    String jsonData = combineAllDataToJson(configPath, sensorPath, actuatorPath);
+
+    httpClient.begin(wifiClient, url);  // Inicia o cliente HTTP com a URL fornecida
+    httpClient.addHeader("Content-Type", "application/json");  // Importante para indicar que o corpo da requisição é um JSON
+
+    int httpCode = httpClient.POST(jsonData);  // Realiza uma requisição POST
+
+    if (httpCode > 0) {
+        String payload = httpClient.getString();  // Obtém a resposta do servidor
+        Serial.println(payload);
+    } else {
+        Serial.print("Erro na requisição POST: ");
+        Serial.println(httpCode);
+    }
+
+    httpClient.end();  // Finaliza a conexão
 }

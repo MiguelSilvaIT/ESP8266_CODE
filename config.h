@@ -12,4 +12,6 @@ extern const char* sensors_path;
 
 extern const char* atuadores_path;
 
+extern const char* config_path;
+
 #endif

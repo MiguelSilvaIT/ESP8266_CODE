@@ -13,7 +13,7 @@ struct SensorData {
 };
 
 // Função para adicionar dados de sensor ao arquivo
-void addSensor(const char* path, JsonDocument& doc);
+String addSensor(const char* path, JsonDocument& doc);
 
 // Função para ler os dados do sensor de um arquivo
 void readSensor(const char* path);
@@ -33,5 +33,7 @@ float readSensorValue(int pin, String tipo);
 bool updateSensorById(const char* path, int sensorId, const SensorData& newData);
 
 bool deleteSensorById(const char* path, int sensorId);
+
+
 
 #endif

@@ -2,6 +2,9 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Access-Control-Allow-Origin" content="*"/>
+
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plataforma IoT - Laboratório Inteligente</title>
     <!-- Bootstrap CSS -->
@@ -10,7 +13,8 @@
     <!--Axios-->
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <!--JS-->
-    <script src="main.js"></script>
+    <script src="sensores.js"></script>
+    <script src="utils.js"></script>
 
 </head>
 <body>
@@ -24,38 +28,35 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ml-auto">
                 <li class="nav-item active">
-                    <a class="nav-link" href="#">Dispositivos</a>
+                    <a class="nav-link" href="#">Sensores</a>
                 </li>
+
+                <li class="nav-item">
+                  <a class="nav-link" href="atuadores.html">Atuadores</a>
+                </li>
+
+                <li class="nav-item">
+                  <a class="nav-link" href="esp_config.html">Dispositivo</a>
+                </li>
+              
+                
                
             </ul>
         </div>
     </div>
 </nav>
 
+<br>
+<label for="ipEsp">Endereço IP do ESP8266:</label>
+        <input type="text" id="ipEsp" name="ipEsp" required>
+        <br>
+
+<button type="button" class="btn btn-primary" id="cleanSensorData">Apagar sensores</button>
+
+
 <div class="container mt-5">
     <div class="row">
-            <div class="col-sm-3">
-                <div class="card text-black">
-                    <div class="card text-center">
-                        <div class="card-header">
-                            <p class="text-center">
-                                <b>
-                                    Temperatura: <a id="valor_temperatura"> </a>
-                                </b>
-                            </p>
-                        </div>
-                        <div class="card-body">
-                            <img src="imagens/temperature.png" alt="Temperatura" height="100"
-                                width="100">
-                        </div>
-                        <div class="card-footer">
-                            <p class="text-center"><b>Atualização</b>:
-                                <a id="valor_data"> </a>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            
         </div>
         <!-- Adicione mais cards para outros valores, se necessário -->
     </div>
@@ -69,13 +70,29 @@
             <input type="text" class="form-control" id="nomeSensor" required>
         </div>
         <div class="form-group">
+            <label for="tipoSensor">Tipo:</label>
+            <input type="text" class="form-control" id="tipoSensor" required>
+        </div>
+        <div class="form-group">
             <label for="pinSensor">Pin do Sensor:</label>
             <input type="text" class="form-control" id="pinSensor" required>
+        </div>
+        <div class="form-group">
+            <label for="modoOperacao">Modo de Operação:</label>
+            <select class="form-control" id="modoOperacao">
+                <option value="1">Analogico</option>
+                <option value="2">Digital</option>
+            </select>
         </div>
         <div class="form-group">
             <label for="idUnidade">ID da Unidade:</label>
             <select class="form-control unidade-dropdown" id="idUnidade">
                 <!-- Opções de unidades serão adicionadas aqui -->
+                <option value="1">Cº</option>
+                <option value="2">F</option>
+                <option value="3">K</option>
+                <option value="4">Lumens</option>
+                
             </select>
         </div>
         
@@ -105,11 +122,27 @@
               <label for="editarPinSensor">Pin do Sensor:</label>
               <input type="text" class="form-control" id="editarPinSensor" required>
             </div>
+            
             <div class="form-group">
-                <label for="editarIdUnidade">ID da Unidade:</label>
-                <select class="form-control unidade-dropdown" id="editarIdUnidade">
-                    <!-- Opções de unidades serão adicionadas aqui -->
-                </select>
+              <label for="editarTipoSensor">Tipo:</label>
+              <input type="text" class="form-control" id="editarTipo" required>
+            </div>
+            <div class="form-group">
+              <label for="editarModoOperacao">Modo de Operação:</label>
+              <select class="form-control" id="editarModoOperacao">
+                <option value="1">Analogico</option>
+                <option value="2">Digital</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="editarIdUnidade">ID da Unidade:</label>
+              <select class="form-control unidade-dropdown" id="editarUnidade">
+                <!-- Opções de unidades serão adicionadas aqui -->
+                <option value="1">Cº</option>
+                <option value="2">F</option>
+                <option value="3">K</option>
+                <option value="4">Lumens</option>
+              </select>
             </div>
             
             <input type="hidden" id="editarSensorId">
