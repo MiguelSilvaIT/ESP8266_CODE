@@ -11,7 +11,7 @@ void initFS() {
 
 bool handleESPConfig(JsonDocument& doc) {
   Serial.println("Inicio Handle Config");
-  File configFile = LittleFS.open("/config.txt", "w");
+  File configFile = LittleFS.open(config_path, "w");
   if (!configFile) {
     Serial.println("Failed to open config file for writing");
     return false;
@@ -26,7 +26,7 @@ bool handleESPConfig(JsonDocument& doc) {
 
   // Formatando os dados como uma linha CSV
   String data = String(name) + ";" + description + ";" + centralIP;
-  configFile.println(data);
+  configFile.print(data);
   configFile.close();
 
   // Reabrir o arquivo para leitura e verificar o conteúdo
@@ -48,3 +48,5 @@ bool handleESPConfig(JsonDocument& doc) {
 
   return true;
 }
+
+

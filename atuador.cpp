@@ -7,7 +7,7 @@
 String addAtuador(const char* path, JsonDocument& doc) {
   // Verifica se o arquivo existe; se não, cria o arquivo
 
-    int pin = doc["pin"].as<int>();
+    String pin = doc["pin"];
     if (isPinUsed(path, pin)) {
         Serial.println("Pin is already in use");
         return "Pin is already in use";  // Stop adding the new actuator if the pin is used

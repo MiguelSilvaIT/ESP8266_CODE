@@ -79,7 +79,7 @@ document.addEventListener("DOMContentLoaded", function () {
       valor: 0,
       dtCriacao: new Date(),
       dispositivoId: idDispositivo,
-      unidadeId: idUnidade ? idUnidade : null,
+      unidade: idUnidade ? idUnidade : null,
     };
 
     jsonString = JSON.stringify(dadosSensor);

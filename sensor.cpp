@@ -6,52 +6,52 @@
 
 
 String addSensor(const char* path, JsonDocument& doc) {
-  // Check if the file exists; if not, create the file
-
-
-  if (!LittleFS.exists(path)) {
-
-    int pin = doc["pin"].as<int>();
+    // Check if the file exists; if not, create the file
+    String pin = doc["pin"];
     if (isPinUsed(path, pin)) {
-      Serial.println("Pin is already in use");
-      return "Pin is already in use";  // Stop adding the new actuator if the pin is used
+        Serial.println("Pin is already in use");
+        return "Pin is already in use";  // Stop adding the new sensor if the pin is used
     }
 
+    if (!LittleFS.exists(path)) {
+        File file = LittleFS.open(path, "w");
+        if (!file) {
+            Serial.println("Failed to open file for writing");
+            return "Failed to open file for writing";
+        }
+        file.println("ID;Nome;Tipo;Pin;ModoOperacao;Valor;DataCriacao;DispositivoId;Unidade;isDeleted");
+        file.close();
+    }
 
-    File file = LittleFS.open(path, "w");
+    int lastId = readLastSensorId();  // Read the last used ID
+    lastId++;                         // Increment the ID
+    doc["id"] = lastId;               // Update the ID in the JSON document
+
+    // Open the file to append
+    File file = LittleFS.open(path, "a");
     if (!file) {
-      Serial.println("Failed to open file for writing");
-      return "Failed to open file for writing";
+        Serial.println("Failed to open file for appending");
+        return "Failed to open file for appending";
     }
-    file.println("ID;Nome;Tipo;Pin;ModoOperacao;Valor;DataCriacao;DispositivoId;UnidadeId");
-    file.close();
-  }
 
-  int lastId = readLastSensorId();  // Read the last used ID
-  lastId++;                         // Increment the ID
-  doc["id"] = lastId;               // Update the ID in the JSON document
+    // Format the received data into a string
+    String dataString = String(doc["id"].as<int>()) + ";" + String((const char*)doc["nome"]) + ";" 
+                        + String((const char*)doc["tipo"]) + ";" + String((const char*)doc["pin"]) + ";"
+                        + String((const char*)doc["modoOperacao"]) + ";" + String((float)doc["valor"]) + ";"
+                        + String((const char*)doc["dtCriacao"]) + ";" + String((int)doc["dispositivoId"]) + ";" 
+                        + String((const char*)doc["unidade"]) + ";false";
 
-  // Open the file to append
-  File file = LittleFS.open(path, "a");
-  if (!file) {
-    Serial.println("Failed to open file for appending");
-    return "Failed to open file for appending";
-  }
-
-  // Format the received data into a string
-  String dataString = String(doc["id"].as<int>()) + ";" + String((const char*)doc["nome"]) + ";" + String((const char*)doc["tipo"]) + ";" + String((const char*)doc["pin"]) + ";" + String((const char*)doc["modoOperacao"]) + ";" + String((float)doc["valor"]) + ";" + String((const char*)doc["dtCriacao"]) + ";" + String((int)doc["dispositivoId"]) + ";" + String((const char*)doc["unidadeId"]);
-
-  // Append the formatted string to the file
-  if (file.println(dataString)) {
-    Serial.println("Sensor data appended");
-    updateLastSensorId(lastId);
-    file.close();
-    return "Sensor data appended successfully";
-  } else {
-    Serial.println("Append failed");
-    file.close();
-    return "Append failed";
-  }
+    // Append the formatted string to the file
+    if (file.println(dataString)) {
+        Serial.println("Sensor data appended");
+        updateLastSensorId(lastId);
+        file.close();
+        return "Sensor data appended successfully";
+    } else {
+        Serial.println("Append failed");
+        file.close();
+        return "Append failed";
+    }
 }
 
 void readSensor(const char* path) {
@@ -64,7 +64,9 @@ void readSensor(const char* path) {
   }
 
   Serial.println("Read from file: ");
-  while (file.available()) { Serial.write(file.read()); }
+  while (file.available()) {
+    Serial.write(file.read());
+  }
   Serial.println("End of read");
   file.close();
 }
@@ -190,47 +192,71 @@ float readSensorValue(int pin, String tipo) {
 }
 
 bool deleteSensorById(const char* path, int sensorId) {
-  File file = LittleFS.open(path, "r+");
-  if (!file) {
-    Serial.println("Failed to open file for reading and writing");
-    return false;
-  }
-
-  String output;
-  String line;
-  bool found = false;
-
-  while (file.available()) {
-    line = file.readStringUntil('\n');
-    // Remove '\r' se estiver presente no final da linha
-    if (line.endsWith("\r")) {
-      line = line.substring(0, line.length() - 1);
+    File file = LittleFS.open(path, "r+");
+    if (!file) {
+        Serial.println("Failed to open file for reading and writing");
+        return false;
     }
 
-    int currentId = line.substring(0, line.indexOf(';')).toInt();  // Assumindo que o ID seja sempre o primeiro item antes do ';'
-    if (currentId != sensorId) {
-      output += line + "\n";
+    String output;
+    String line;
+    bool found = false;
+
+    // Lê o cabeçalho e adiciona ao output
+    if (file.available()) {
+        line = file.readStringUntil('\n');
+        output += line + "\n";
+    }
+
+    // Processa cada linha do arquivo
+    while (file.available()) {
+        line = file.readStringUntil('\n');
+        if (line.length() == 0) continue; // Ignorar linhas vazias
+
+        std::vector<String> data = split(line, ';');
+        int currentId = data[0].toInt();
+
+        // Imprimir a linha processada para depuração
+        Serial.print("Processing line: ");
+        Serial.println(line);
+
+        if (currentId == sensorId) {
+            data[9] = "true"; // Marca como deletado
+            found = true;
+        }
+
+        // Reconstrói a linha
+        String newLine = "";
+        for (int i = 0; i < data.size(); i++) {
+            newLine += data[i] + (i < data.size() - 1 ? ";" : "");
+        }
+        output += newLine + "\n";
+    }
+
+    if (!found) {
+        Serial.println("Sensor ID not found for deletion.");
+        file.close();
+        return false;
+    }
+
+    // Reescreve os dados atualizados no arquivo
+    file.seek(0);
+    file.write((const uint8_t*)output.c_str(), output.length());
+    file.close();
+
+    // Mostrar o conteúdo completo do arquivo para debug
+    file = LittleFS.open(path, "r");
+    if (file) {
+        Serial.println("Content of the file after deletion:");
+        while (file.available()) {
+            Serial.write(file.read());
+        }
+        file.close();
     } else {
-      found = true;  // Encontrou a linha a ser deletada
+        Serial.println("Failed to open file for reading after deletion");
     }
-  }
 
-  file.close();  // Fecha o arquivo para resetar o cursor antes de reabri-lo para escrita
-
-  if (!found) {
-    return false;  // Se não encontrar o ID, retorna falso
-  }
-
-  // Reabre o arquivo para escrita e limpa seu conteúdo
-  file = LittleFS.open(path, "w");
-  if (!file) {
-    Serial.println("Failed to open file for writing");
-    return false;
-  }
-
-  file.print(output);  // Escreve a nova saída sem a linha do ID
-  file.close();        // Fecha o arquivo após a operação de escrita
-  return true;
+    return true;
 }
 
 
@@ -286,4 +312,41 @@ bool updateSensorById(const char* path, int sensorId, const SensorData& newData)
   file.write((const uint8_t*)output.c_str(), output.length());
   file.close();
   return true;
+}
+
+bool deleteSensorRequest(int sensorId) {
+  // Verifique se a conexão WiFi está ativa
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi not connected");
+    return false;
+  }
+
+  // Obtenha o MAC address
+  String macAddress = WiFi.macAddress();
+
+  // Obtenha o IP Central
+
+
+  // Verifique se o IP Central não está vazio
+  if (centralIP.length() == 0) {
+    Serial.println("Central IP is empty");
+    return false;
+  }
+
+  // Formate a URL com o MAC address e o sensor ID
+  String url = "http://192.168.58.1:3000/api/sensors/delete";
+
+
+  // Construir o payload JSON
+  //String payload = "{\"macAddress\":\"" + macAddress + "\", \"sensorId\":" + String(sensorId) + "}";
+
+
+  // Utilizar o método sendPostRequest para enviar a requisição
+  if (sendPostRequest("http://192.168.1.41:3000/", "ola")) {
+    Serial.println("Requisição de exclusão enviada com sucesso.");
+    return true;
+  } else {
+    Serial.println("Falha ao enviar a requisição de exclusão.");
+    return false;
+  }
 }

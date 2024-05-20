@@ -14,4 +14,6 @@ extern const char* atuadores_path;
 
 extern const char* config_path;
 
+extern String centralIP;
+
 #endif

@@ -27,7 +27,7 @@ void updateLastAtuadorId(int lastId);
 String getAllAtuadorData(const char* path);
 
 
-float readAtuadorValue(char* pin, String tipo);
+float readAtuadorValue(int pin, String tipo);
 
 
 bool updateAtuadorById(const char* path, int atuadorId, const AtuadorData& newData);

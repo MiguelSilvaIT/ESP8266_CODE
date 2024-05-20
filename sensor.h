@@ -34,6 +34,7 @@ bool updateSensorById(const char* path, int sensorId, const SensorData& newData)
 
 bool deleteSensorById(const char* path, int sensorId);
 
+bool deleteSensorRequest(int sensorId);
 
 
 #endif

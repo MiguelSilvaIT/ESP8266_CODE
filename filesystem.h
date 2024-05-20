@@ -4,6 +4,7 @@
 #include "FS.h"
 #include <ArduinoJson.h>
 #include "LittleFS.h"
+#include "config.h"
 
 // Inicializa o sistema de arquivos LittleFS
 void initFS();
