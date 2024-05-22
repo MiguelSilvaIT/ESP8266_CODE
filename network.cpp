@@ -27,7 +27,7 @@ void configureWebServer(AsyncWebServer& server) {
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
 
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(LittleFS, "/index.html", "text/html", false);
   });
 
@@ -36,43 +36,44 @@ void configureWebServer(AsyncWebServer& server) {
   //ADICIONAR SENSOR
   server.on(
 
-  "/addSensor", HTTP_POST, [](AsyncWebServerRequest * request) {}, NULL, [](AsyncWebServerRequest * request, uint8_t* data, size_t len, size_t index, size_t total) {
-    // Cria um documento JSON para armazenar os dados recebidos
+    "/addSensor", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+      // Cria um documento JSON para armazenar os dados recebidos
 
-    static String jsonData;  // Use static to preserve the value across calls
-    for (size_t i = 0; i < len; i++) {
-      jsonData += (char)data[i];
-    }
-    if (index + len == total) {  // Check if this is the last chunk
-      // Now jsonData contains the complete JSON string
-
-      Serial.println("-------------------------");
-      Serial.println(jsonData);
-      Serial.println("-------------------------");
-
-      DynamicJsonDocument doc(1024);
-      DeserializationError error = deserializeJson(doc, jsonData);
-
-      if (error) {
-        Serial.print("Erro de serialização:");
-        Serial.println(error.c_str());
-        request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
+      static String jsonData;  // Use static to preserve the value across calls
+      for (size_t i = 0; i < len; i++) {
+        jsonData += (char)data[i];
       }
-      jsonData = "";  // Clear the jsonData for the next message
+      if (index + len == total) {  // Check if this is the last chunk
+        // Now jsonData contains the complete JSON string
 
-      String result = addSensor(sensors_path, doc);
-      if (result.startsWith("Failed")) {
-        request->send(500, "application/json", "{\"message\":\"" + result + "\"}");
-      } else {
-        request->send(200, "application/json", "{\"message\":\"" + result + "\"}");
+        Serial.println("-------------------------");
+        Serial.println(jsonData);
+        Serial.println("-------------------------");
+
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, jsonData);
+
+        if (error) {
+          Serial.print("Erro de serialização:");
+          Serial.println(error.c_str());
+          request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
+        }
+        jsonData = "";  // Clear the jsonData for the next message
+
+        String result = addSensor(sensors_path, doc);
+        if (result == "Pin is already in use") {
+          request->send(409, "application/json",  result);
+        } else if (result == "Failed to open file for writing" || result == "Failed to open file for appending" || result == "Append failed") {
+          request->send(500, "application/json",  result );
+        } else {
+          request->send(200, "application/json",  result );
+        }
       }
-    }
 
 
-    readSensor(sensors_path);
 
-
-  });
+      readSensor(sensors_path);
+    });
 
 
 
@@ -82,64 +83,62 @@ void configureWebServer(AsyncWebServer& server) {
 
 
 
-  server.on("/clearSensorData", HTTP_DELETE, [](AsyncWebServerRequest * request) {
+  server.on("/clearSensorData", HTTP_DELETE, [](AsyncWebServerRequest* request) {
     clearSensorData(sensors_path);  // Chama a função para limpar os dados
     request->send(200, "application/json", "{\"message\":\"Sensor data cleared successfully\"}");
   });
 
   server.on(
-  "/sensors", HTTP_PUT, [](AsyncWebServerRequest * request) {}, NULL, [](AsyncWebServerRequest * request, uint8_t* data, size_t len, size_t index, size_t total) {
-    static String jsonData;
-    int sensorId;
+    "/sensors", HTTP_PUT, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+      static String jsonData;
+      int sensorId;
 
-    if (request->hasParam("id", true)) {
-      sensorId = request->getParam("id", true)->value().toInt();
-    } else {
-      request->send(404, "application/json", "{\"message\":\"Sensor ID not found\"}");
-    }
-    for (size_t i = 0; i < len; i++) {
-      jsonData += (char)data[i];
-    }
-    if (index + len == total) {
-      DynamicJsonDocument doc(1024);
-      DeserializationError error = deserializeJson(doc, jsonData);
-      if (error) {
-        request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
-        return;
-      }
-      jsonData = "";
-
-      SensorData newData = {
-        doc["nome"].as<String>(),
-        doc["tipo"].as<String>(),
-        doc["modoOperacao"].as<String>(),
-        doc["unidade"].as<String>(),
-        doc["pin"].as<int>(),
-      };
-
-      if (updateSensorById(sensors_path, sensorId, newData)) {
-        request->send(200, "application/json", "{\"message\":\"Sensor updated successfully\"}");
+      if (request->hasParam("id", true)) {
+        sensorId = request->getParam("id", true)->value().toInt();
       } else {
-        request->send(500, "application/json", "{\"message\":\"Failed to update sensor\"}");
+        request->send(404, "application/json", "{\"message\":\"Sensor ID not found\"}");
       }
-    }
-  });
+      for (size_t i = 0; i < len; i++) {
+        jsonData += (char)data[i];
+      }
+      if (index + len == total) {
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, jsonData);
+        if (error) {
+          request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
+          return;
+        }
+        jsonData = "";
+
+        SensorData newData = {
+          doc["nome"].as<String>(),
+          doc["tipo"].as<String>(),
+          doc["modoOperacao"].as<String>(),
+          doc["unidade"].as<String>(),
+          doc["pin"].as<int>(),
+        };
+
+        if (updateSensorById(sensors_path, sensorId, newData)) {
+          request->send(200, "application/json", "{\"message\":\"Sensor updated successfully\"}");
+        } else {
+          request->send(500, "application/json", "{\"message\":\"Failed to update sensor\"}");
+        }
+      }
+    });
 
 
-  server.on("/ip", HTTP_GET, [](AsyncWebServerRequest * request) {
+  server.on("/ip", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(200, "text/plain", WiFi.localIP().toString());
   });
 
 
   //Obter todos os sensores
-  server.on("/sensors", HTTP_GET, [](AsyncWebServerRequest * request) {
+  server.on("/sensors", HTTP_GET, [](AsyncWebServerRequest* request) {
     String sensorData = getAllSensorData(sensors_path);  // Substitua pelo caminho correto do arquivo
     request->send(200, "application/json", sensorData);
   });
 
-  server.on("/deleteSensor", HTTP_DELETE, [](AsyncWebServerRequest * request) {
-
-
+  server.on("/deleteSensor", HTTP_DELETE, [](AsyncWebServerRequest* request) {
     if (!request->hasParam("id")) {
       request->send(400, "application/json", "{\"message\":\"Sensor ID missing\"}");
       return;
@@ -156,57 +155,57 @@ void configureWebServer(AsyncWebServer& server) {
 
   //ATUADORES
 
-  server.on("/atuadores", HTTP_GET, [](AsyncWebServerRequest * request) {
+  server.on("/atuadores", HTTP_GET, [](AsyncWebServerRequest* request) {
     String atuadorData = getAllAtuadorData(atuadores_path);  // Substitua pelo caminho correto do arquivo
     request->send(200, "application/json", atuadorData);
   });
 
   server.on(
-  "/atuadores", HTTP_POST, [](AsyncWebServerRequest * request) {}, NULL, [](AsyncWebServerRequest * request, uint8_t* data, size_t len, size_t index, size_t total) {
-    // Cria um documento JSON para armazenar os dados recebidos
+    "/atuadores", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+      // Cria um documento JSON para armazenar os dados recebidos
 
-    static String jsonData;  // Use static to preserve the value across calls
-    for (size_t i = 0; i < len; i++) {
-      jsonData += (char)data[i];
-    }
-    if (index + len == total) {  // Check if this is the last chunk
-      // Now jsonData contains the complete JSON string
-
-      Serial.println("-------------------------");
-      Serial.println(jsonData);
-      Serial.println("-------------------------");
-
-      DynamicJsonDocument doc(1024);
-      DeserializationError error = deserializeJson(doc, jsonData);
-
-      if (error) {
-        Serial.print("Erro de serialização:");
-        Serial.println(error.c_str());
-        request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
+      static String jsonData;  // Use static to preserve the value across calls
+      for (size_t i = 0; i < len; i++) {
+        jsonData += (char)data[i];
       }
-      jsonData = "";  // Clear the jsonData for the next message
+      if (index + len == total) {  // Check if this is the last chunk
+        // Now jsonData contains the complete JSON string
 
-      String result = addAtuador(atuadores_path, doc);  // Call the modified addAtuador function
-      if (result == "Pin is already in use") {
-        request->send(409, "application/json", "{\"message\":\"" + result + "\"}");
-      } else if (result == "Failed to open file for writing" || result == "Failed to open file for appending" || result == "Append failed") {
-        request->send(500, "application/json", "{\"message\":\"" + result + "\"}");
-      } else {
-        request->send(200, "application/json", "{\"message\":\"" + result + "\"}");
+        Serial.println("-------------------------");
+        Serial.println(jsonData);
+        Serial.println("-------------------------");
+
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, jsonData);
+
+        if (error) {
+          Serial.print("Erro de serialização:");
+          Serial.println(error.c_str());
+          request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
+        }
+        jsonData = "";  // Clear the jsonData for the next message
+
+        String result = addAtuador(atuadores_path, doc);  // Call the modified addAtuador function
+        if (result == "Pin is already in use") {
+          request->send(409, "application/json",  result );
+        } else if (result == "Failed to open file for writing" || result == "Failed to open file for appending" || result == "Append failed") {
+          request->send(500, "application/json",  result );
+        } else {
+          request->send(200, "application/json",  result );
+        }
       }
-    }
 
-    AsyncWebServerResponse* response = request->beginResponse(200, "application/json", "{\"message\":\"Atuador added successfully\"}");
+      AsyncWebServerResponse* response = request->beginResponse(200, "application/json", "{\"message\":\"Atuador added successfully\"}");
 
-    readAtuador(atuadores_path);
-  });
+      readAtuador(atuadores_path);
+    });
 
-  server.on("/clearAtuadorData", HTTP_DELETE, [](AsyncWebServerRequest * request) {
+  server.on("/clearAtuadorData", HTTP_DELETE, [](AsyncWebServerRequest* request) {
     clearAtuadorData(atuadores_path);  // Chama a função para limpar os dados
     request->send(200, "application/json", "{\"message\":\"Atuador data cleared successfully\"}");
   });
 
-  server.on("/toggleAtuador", HTTP_POST, [](AsyncWebServerRequest * request) {
+  server.on("/toggleAtuador", HTTP_POST, [](AsyncWebServerRequest* request) {
     int atuadorPin = 0;
     int novoValor = 0;
     String modoOperacao = "";
@@ -229,7 +228,7 @@ void configureWebServer(AsyncWebServer& server) {
 
 
 
-  server.on("/deleteAtuador", HTTP_DELETE, [](AsyncWebServerRequest * request) {
+  server.on("/deleteAtuador", HTTP_DELETE, [](AsyncWebServerRequest* request) {
     if (!request->hasParam("id")) {
       request->send(400, "application/json", "{\"message\":\"Atuador ID missing\"}");
       return;
@@ -249,34 +248,35 @@ void configureWebServer(AsyncWebServer& server) {
   //--DISPOSITICO--
 
   server.on(
-  "/esp/config", HTTP_POST, [](AsyncWebServerRequest * request) {}, NULL, [](AsyncWebServerRequest * request, uint8_t* data, size_t len, size_t index, size_t total) {
-    static String jsonData;
-    for (size_t i = 0; i < len; i++) {
-      jsonData += (char)data[i];
-    }
-    if (index + len == total) {
-      DynamicJsonDocument doc(1024);
-      DeserializationError error = deserializeJson(doc, jsonData);
-      if (error) {
-        request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
-        jsonData = "";
-        return;
+    "/esp/config", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+      static String jsonData;
+      for (size_t i = 0; i < len; i++) {
+        jsonData += (char)data[i];
       }
+      if (index + len == total) {
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, jsonData);
+        if (error) {
+          request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
+          jsonData = "";
+          return;
+        }
 
 
-      jsonData = "";  // Clear the buffer for the next message
+        jsonData = "";  // Clear the buffer for the next message
 
-      // Handle the configuration data
-      if (!handleESPConfig(doc)) {
-        request->send(500, "application/json", "{\"message\":\"Failed to store configuration\"}");
-      } else {
-        request->send(200, "application/json", "{\"message\":\"Configuration saved successfully\"}");
+        // Handle the configuration data
+        if (!handleESPConfig(doc)) {
+          request->send(500, "application/json", "{\"message\":\"Failed to store configuration\"}");
+        } else {
+          request->send(200, "application/json", "{\"message\":\"Configuration saved successfully\"}");
+          initCentralIP();
+        }
       }
-    }
-  });
+    });
 
 
-  server.onNotFound([](AsyncWebServerRequest * request) {
+  server.onNotFound([](AsyncWebServerRequest* request) {
     Serial.println("OPTIONS PRE-FLIGHT REQUEST RECEIVED");
     Serial.println(request->method());
     if (request->method() == 64) {

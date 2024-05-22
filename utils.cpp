@@ -25,7 +25,8 @@ bool isPinUsed(const char* path, String pin) {
   while (file.available()) {
     String line = file.readStringUntil('\n');
     std::vector<String> data = split(line, ';');
-    if (data.size() > 3 && data[3] == pin) {  // Assuming pin is the fourth element in the stored data
+    data[9].trim();
+    if (data.size() > 3 && data[3] == pin  && data[9] == "false") {  // Assuming pin is the fourth element in the stored data
       file.close();
       return true;
     }
@@ -66,28 +67,69 @@ String readConfig(const char* path, JsonDocument& doc) {
 }
 
 String getCentralIP() {
-  File configFile = LittleFS.open("/config.txt", "r");
-  if (!configFile) {
-    Serial.println("Failed to open config file for reading");
-    return "";  // Retorna uma string vazia se não conseguir abrir o arquivo
-  }
+    // Tenta abrir o arquivo de configuração
+    Serial.println("Tentando abrir o arquivo de configuração...");
+    File configFile = LittleFS.open("/config.txt", "r");
+    if (!configFile) {
+        Serial.println("Falha ao abrir o arquivo de configuração para leitura");
+        return "";  // Retorna uma string vazia se não conseguir abrir o arquivo
+    }
 
-  // Ler a linha do cabeçalho para ignorá-la
-  configFile.readStringUntil('\n');
+    // Ler a linha do cabeçalho para ignorá-la
+    if (configFile.available()) {
+        Serial.println("Lendo a linha do cabeçalho...");
+        String header = configFile.readStringUntil('\n');
+        Serial.print("Cabeçalho: ");
+        Serial.println(header);
+    } else {
+        Serial.println("Arquivo de configuração está vazio ou corrompido");
+        configFile.close();
+        return "";
+    }
 
-  // Ler a linha seguinte que contém os dados
-  String data = configFile.readStringUntil('\n');
-  configFile.close();
+    // Ler a linha seguinte que contém os dados
+    if (configFile.available()) {
+        Serial.println("Lendo a linha de dados...");
+        String data = configFile.readStringUntil('\n');
+        Serial.print("Dados lidos: ");
+        Serial.println(data);
 
-  // Extrair o IP Central
-  int firstSemiColon = data.indexOf(';');
-  int secondSemiColon = data.indexOf(';', firstSemiColon + 1);
+        // Extrair o IP Central
+        Serial.println("Extraindo o IP Central...");
+        int firstSemiColon = data.indexOf(';');
+        if (firstSemiColon == -1) {
+            Serial.println("Erro ao encontrar o primeiro ponto e vírgula");
+            configFile.close();
+            return "";
+        }
+        Serial.print("Índice do primeiro ponto e vírgula: ");
+        Serial.println(firstSemiColon);
 
-  // Substring desde o caractere após o primeiro ponto e vírgula até o segundo ponto e vírgula
-  String centralIP = data.substring(secondSemiColon + 1);
+        int secondSemiColon = data.indexOf(';', firstSemiColon + 1);
+        if (secondSemiColon == -1) {
+            Serial.println("Erro ao encontrar o segundo ponto e vírgula");
+            configFile.close();
+            return "";
+        }
+        Serial.print("Índice do segundo ponto e vírgula: ");
+        Serial.println(secondSemiColon);
 
-  return centralIP;
+        // Substring desde o caractere após o segundo ponto e vírgula até o final
+        String centralIP = data.substring(secondSemiColon + 1);
+        centralIP.trim();  // Remover quaisquer espaços em branco ao redor
+        Serial.print("IP Central extraído: ");
+        Serial.println(centralIP);
+
+        configFile.close();
+        return centralIP;
+    } else {
+        Serial.println("Arquivo de configuração não contém dados suficientes");
+        configFile.close();
+        return "";
+    }
 }
+
+
 
 void readSensorsAndActuators(JsonArray& sensors, JsonArray& actuators, const char* sensorPath, const char* actuatorPath) {
 
@@ -154,6 +196,7 @@ void readSensorsAndActuators(JsonArray& sensors, JsonArray& actuators, const cha
         actuator["DataCriacao"] = fields[6];
         actuator["DispositivoId"] = fields[7];
         actuator["Unidade"] = fields[8];
+        actuator["isDeleted"] = fields[9];
       }
     }
   }
@@ -204,7 +247,8 @@ bool sendPostRequest(const char* url, const String& payload) {
     WiFiClient client;
     http.begin(client ,url);
     http.addHeader("Content-Type", "application/json");
-    
+    Serial.print("URL-->");
+    Serial.println(url);
     int httpResponseCode = http.POST(payload);
 
     if (httpResponseCode > 0) {

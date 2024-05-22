@@ -91,11 +91,13 @@ document.addEventListener("DOMContentLoaded", function () {
         headers: { "Content-Type": "application/json" },
       })
       .then((response) => {
-        console.log("Sensor adicionado com sucesso:", response.data);
+        alert("Sensor adicionado com sucesso:", response.data);
         // Aqui você pode adicionar alguma ação após o sucesso, como recarregar a lista de sensores
       })
       .catch((error) => {
-        console.error("Erro ao adicionar o sensor:", error);
+     
+	   alert(error.response.data);
+      
       });
   });
 

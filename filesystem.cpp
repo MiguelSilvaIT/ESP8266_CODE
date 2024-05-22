@@ -26,7 +26,7 @@ bool handleESPConfig(JsonDocument& doc) {
 
   // Formatando os dados como uma linha CSV
   String data = String(name) + ";" + description + ";" + centralIP;
-  configFile.print(data);
+  configFile.println(data);
   configFile.close();
 
   // Reabrir o arquivo para leitura e verificar o conteúdo
@@ -45,6 +45,8 @@ bool handleESPConfig(JsonDocument& doc) {
 
   // Imprimir o conteúdo do arquivo
   Serial.print(fileContent);
+
+
 
   return true;
 }

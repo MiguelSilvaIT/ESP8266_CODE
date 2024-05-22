@@ -86,7 +86,7 @@ document.addEventListener("DOMContentLoaded", function () {
       valor: 0,
       dtCriacao: new Date(),
       dispositivoId: idDispositivo,
-      unidadeId: idUnidade ? idUnidade : null,
+      unidade: idUnidade ? idUnidade : null,
     };
 
     jsonString = JSON.stringify(dadosAtuador);
@@ -98,11 +98,11 @@ document.addEventListener("DOMContentLoaded", function () {
         headers: { "Content-Type": "application/json" },
       })
       .then((response) => {
-        console.log("Atuador adicionado com sucesso:", response.data);
+        alert("Atuador adicionado com sucesso:", response.data);
         // Aqui você pode adicionar alguma ação após o sucesso, como recarregar a lista de atuadores
       })
       .catch((error) => {
-        console.error("Erro ao adicionar o atuador:", error);
+        alert(error.response.data);
       });
   });
 

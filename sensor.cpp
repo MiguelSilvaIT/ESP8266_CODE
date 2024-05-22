@@ -115,69 +115,61 @@ void updateLastSensorId(int lastId) {
 }
 
 String getAllSensorData(const char* path) {
-
-  //Serial.println("Inicio getAllSensorData");
-
-  File file = LittleFS.open(path, "r");
-  if (!file) {
-    Serial.println("Failed to open file for reading");
-    return "{}";  // Retorna um objeto JSON vazio em caso de falha
-  }
-
-
-  //Ignora o cabeçalho
-  if (file.available()) {
-    file.readStringUntil('\n');
-  }
-
-
-  DynamicJsonDocument doc(2048);  // Ajuste o tamanho conforme necessário
-  JsonArray array = doc.to<JsonArray>();
-
-
-
-  while (file.available()) {
-
-
-    String line = file.readStringUntil('\n');
-    std::vector<String> data = split(line, ';');  // Assumindo que seus dados estão separados por ponto-e-vírgula
-    JsonObject obj = array.createNestedObject();
-
-
-    obj["Id"] = data[0].toInt();
-    obj["Nome"] = data[1];
-    obj["Tipo"] = data[2];
-    obj["Pin"] = data[3];
-    obj["ModoOperacao"] = data[4];
-
-    // Serial.print("data[3]-->");
-    // Serial.println(data[3]);
-
-    // Serial.print("data[4]-->");
-    // Serial.println(data[4]);
-
-    obj["Valor"] = readSensorValue(data[3].toInt(), data[4]);
-    obj["DataCriacao"] = data[6];
-    obj["DispositivoId"] = data[7].toInt();
-    obj["Unidade"] = data[8];
-    obj["DataUltimaObs"] = getFormattedTime();
-
-
-    String unit = obj["DataUltimaObs"].as<String>();
-
-    if (!unit.isEmpty() && unit[unit.length() - 1] == '\r') {
-      unit.remove(unit.length() - 1);  // Removes the last character if it's a carriage return
-      obj["DataUltimaObs"] = unit;     // Update the JSON object
+    File file = LittleFS.open(path, "r");
+    if (!file) {
+        Serial.println("Failed to open file for reading");
+        return "{}";  // Retorna um objeto JSON vazio em caso de falha
     }
-  }
-  file.close();
 
-  String result;
-  serializeJson(doc, result);
+    // Ignora o cabeçalho
+    if (file.available()) {
+        file.readStringUntil('\n');
+    }
 
-  //Serial.println("Fim so getAllSensorData");
-  return result;
+    DynamicJsonDocument doc(2048);  // Ajuste o tamanho conforme necessário
+    JsonArray array = doc.to<JsonArray>();
+
+    while (file.available()) {
+        String line = file.readStringUntil('\n');
+        std::vector<String> data = split(line, ';');  // Assumindo que seus dados estão separados por ponto-e-vírgula
+
+        // Verificar se a variável isDeleted é false
+        if (data.size() >= 10) {
+            data[9].trim();  // Remove espaços em branco ao redor
+           
+            if (data[9] == "false") {
+                JsonObject obj = array.createNestedObject();
+
+                obj["Id"] = data[0].toInt();
+                obj["Nome"] = data[1];
+                obj["Tipo"] = data[2];
+                obj["Pin"] = data[3];
+                obj["ModoOperacao"] = data[4];
+
+                obj["Valor"] = readSensorValue(data[3].toInt(), data[4]);
+                obj["DataCriacao"] = data[6];
+                obj["DispositivoId"] = data[7].toInt();
+                obj["Unidade"] = data[8];
+                obj["DataUltimaObs"] = getFormattedTime();
+
+                String unit = obj["DataUltimaObs"].as<String>();
+
+                if (!unit.isEmpty() && unit[unit.length() - 1] == '\r') {
+                    unit.remove(unit.length() - 1);  // Remove o último caractere se for um carriage return
+                    obj["DataUltimaObs"] = unit;     // Atualiza o objeto JSON
+                }
+            }
+        }
+    }
+    file.close();
+
+    String result;
+    serializeJson(doc, result);
+
+    return result;
 }
+
+
 
 
 float readSensorValue(int pin, String tipo) {
@@ -191,75 +183,47 @@ float readSensorValue(int pin, String tipo) {
   return 0;  // Retorna 0 como default se o tipo de sensor não for reconhecido
 }
 
-bool deleteSensorById(const char* path, int sensorId) {
-    File file = LittleFS.open(path, "r+");
+bool deleteSensorById(const char* filePath, int targetID) {
+    if (!LittleFS.begin()) {
+        Serial.println("Erro ao montar o sistema de ficheiros LittleFS");
+        return false;
+    }
+
+    File file = LittleFS.open(filePath, "r");
     if (!file) {
-        Serial.println("Failed to open file for reading and writing");
+        Serial.println("Erro ao abrir o ficheiro para leitura");
         return false;
     }
 
-    String output;
-    String line;
-    bool found = false;
-
-    // Lê o cabeçalho e adiciona ao output
-    if (file.available()) {
-        line = file.readStringUntil('\n');
-        output += line + "\n";
-    }
-
-    // Processa cada linha do arquivo
+    String fileContent = "";
+    bool updated = false;
+    
     while (file.available()) {
-        line = file.readStringUntil('\n');
-        if (line.length() == 0) continue; // Ignorar linhas vazias
-
-        std::vector<String> data = split(line, ';');
-        int currentId = data[0].toInt();
-
-        // Imprimir a linha processada para depuração
-        Serial.print("Processing line: ");
-        Serial.println(line);
-
-        if (currentId == sensorId) {
-            data[9] = "true"; // Marca como deletado
-            found = true;
+        String line = file.readStringUntil('\n');
+        if (line.startsWith(String(targetID) + ";")) {
+            // Atualiza a variável isDeleted para true
+            int lastSemicolonIndex = line.lastIndexOf(';');
+            line = line.substring(0, lastSemicolonIndex + 1) + "true";
+            updated = true;
         }
-
-        // Reconstrói a linha
-        String newLine = "";
-        for (int i = 0; i < data.size(); i++) {
-            newLine += data[i] + (i < data.size() - 1 ? ";" : "");
-        }
-        output += newLine + "\n";
+        fileContent += line + "\n";
     }
-
-    if (!found) {
-        Serial.println("Sensor ID not found for deletion.");
-        file.close();
-        return false;
-    }
-
-    // Reescreve os dados atualizados no arquivo
-    file.seek(0);
-    file.write((const uint8_t*)output.c_str(), output.length());
     file.close();
 
-    // Mostrar o conteúdo completo do arquivo para debug
-    file = LittleFS.open(path, "r");
-    if (file) {
-        Serial.println("Content of the file after deletion:");
-        while (file.available()) {
-            Serial.write(file.read());
+    if (updated) {
+        file = LittleFS.open(filePath, "w");
+        if (!file) {
+            Serial.println("Erro ao abrir o ficheiro para escrita");
+            return false;
         }
+        file.print(fileContent);
         file.close();
+        return true;
     } else {
-        Serial.println("Failed to open file for reading after deletion");
+        Serial.println("ID não encontrado no ficheiro");
+        return false;
     }
-
-    return true;
 }
-
-
 
 
 
