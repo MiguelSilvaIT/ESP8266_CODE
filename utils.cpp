@@ -159,7 +159,7 @@ void readSensorsAndActuators(JsonArray& sensors, JsonArray& actuators, const cha
         sensor["Tipo"] = fields[2];
         sensor["Pin"] = fields[3];
         sensor["ModoOperacao"] = fields[4];
-        sensor["Valor"] = readSensorValue(fields[3].toInt(), fields[4]);
+        sensor["Valor"] = readSensorValue(1, fields[4], fields[2]);
         sensor["DataCriacao"] = fields[6];
         sensor["DispositivoId"] = fields[7];
         sensor["Unidade"] = fields[8];
@@ -240,6 +240,8 @@ void initCentralIP() {
   centralIP = getCentralIP();
   centralIP.trim();
 }
+
+
 
 bool sendPostRequest(const char* url, const String& payload) {
   if (WiFi.status() == WL_CONNECTED) {

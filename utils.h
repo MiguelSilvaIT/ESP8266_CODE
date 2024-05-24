@@ -8,6 +8,8 @@
 #include "filesystem.h"
 #include "sensor.h"
 #include "atuador.h"
+#include "config.h"
+
 
 
 std::vector<String> split(const String& data, char delimiter);
@@ -25,6 +27,9 @@ String getCentralIP();
 
 void initCentralIP();
 bool sendPostRequest(const char* url, const String& payload);
+
+
+
 
 
 #endif

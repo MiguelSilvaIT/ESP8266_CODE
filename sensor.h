@@ -1,7 +1,11 @@
 #ifndef SENSOR_H
 #define SENSOR_H
 
-#include <ArduinoJson.h>  // Necessário para manipulação de JSON
+#include <ArduinoJson.h>
+#include <DHT.h>
+
+
+  // Necessário para manipulação de JSON
 
 
 struct SensorData {
@@ -26,15 +30,15 @@ void updateLastSensorId(int lastId);
 
 String getAllSensorData(const char* path);
 
-
-float readSensorValue(int pin, String tipo);
-
+float readSensorValue(int pin, String modoOperacao, String tipo);
 
 bool updateSensorById(const char* path, int sensorId, const SensorData& newData);
 
 bool deleteSensorById(const char* path, int sensorId);
 
 bool deleteSensorRequest(int sensorId);
+
+float lerDHT11(DHT dht);
 
 
 #endif

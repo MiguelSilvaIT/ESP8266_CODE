@@ -3,55 +3,59 @@
 #include "time_manager.h"
 #include "utils.h"
 
+#define READ_INTERVAL 200
 
+
+
+unsigned long lastReadTime = 0;
 
 String addSensor(const char* path, JsonDocument& doc) {
-    // Check if the file exists; if not, create the file
-    String pin = doc["pin"];
-    if (isPinUsed(path, pin)) {
-        Serial.println("Pin is already in use");
-        return "Pin is already in use";  // Stop adding the new sensor if the pin is used
-    }
+  // Check if the file exists; if not, create the file
+  String pin = doc["pin"];
+  if (isPinUsed(path, pin)) {
+    Serial.println("Pin is already in use");
+    return "Pin is already in use";  // Stop adding the new sensor if the pin is used
+  }
 
-    if (!LittleFS.exists(path)) {
-        File file = LittleFS.open(path, "w");
-        if (!file) {
-            Serial.println("Failed to open file for writing");
-            return "Failed to open file for writing";
-        }
-        file.println("ID;Nome;Tipo;Pin;ModoOperacao;Valor;DataCriacao;DispositivoId;Unidade;isDeleted");
-        file.close();
-    }
-
-    int lastId = readLastSensorId();  // Read the last used ID
-    lastId++;                         // Increment the ID
-    doc["id"] = lastId;               // Update the ID in the JSON document
-
-    // Open the file to append
-    File file = LittleFS.open(path, "a");
+  if (!LittleFS.exists(path)) {
+    File file = LittleFS.open(path, "w");
     if (!file) {
-        Serial.println("Failed to open file for appending");
-        return "Failed to open file for appending";
+      Serial.println("Failed to open file for writing");
+      return "Failed to open file for writing";
     }
+    file.println("ID;Nome;Tipo;Pin;ModoOperacao;Valor;DataCriacao;DispositivoId;Unidade;isDeleted");
+    file.close();
+  }
 
-    // Format the received data into a string
-    String dataString = String(doc["id"].as<int>()) + ";" + String((const char*)doc["nome"]) + ";" 
-                        + String((const char*)doc["tipo"]) + ";" + String((const char*)doc["pin"]) + ";"
-                        + String((const char*)doc["modoOperacao"]) + ";" + String((float)doc["valor"]) + ";"
-                        + String((const char*)doc["dtCriacao"]) + ";" + String((int)doc["dispositivoId"]) + ";" 
-                        + String((const char*)doc["unidade"]) + ";false";
+  int lastId = readLastSensorId();  // Read the last used ID
+  lastId++;                         // Increment the ID
+  doc["id"] = lastId;               // Update the ID in the JSON document
 
-    // Append the formatted string to the file
-    if (file.println(dataString)) {
-        Serial.println("Sensor data appended");
-        updateLastSensorId(lastId);
-        file.close();
-        return "Sensor data appended successfully";
-    } else {
-        Serial.println("Append failed");
-        file.close();
-        return "Append failed";
-    }
+  // Open the file to append
+  File file = LittleFS.open(path, "a");
+  if (!file) {
+    Serial.println("Failed to open file for appending");
+    return "Failed to open file for appending";
+  }
+
+  // Format the received data into a string
+  String dataString = String(doc["id"].as<int>()) + ";" + String((const char*)doc["nome"]) + ";"
+                      + String((const char*)doc["tipo"]) + ";" + String((const char*)doc["pin"]) + ";"
+                      + String((const char*)doc["modoOperacao"]) + ";" + String((float)doc["valor"]) + ";"
+                      + String((const char*)doc["dtCriacao"]) + ";" + String((int)doc["dispositivoId"]) + ";"
+                      + String((const char*)doc["unidade"]) + ";false";
+
+  // Append the formatted string to the file
+  if (file.println(dataString)) {
+    Serial.println("Sensor data appended");
+    updateLastSensorId(lastId);
+    file.close();
+    return "Sensor data appended successfully";
+  } else {
+    Serial.println("Append failed");
+    file.close();
+    return "Append failed";
+  }
 }
 
 void readSensor(const char* path) {
@@ -115,114 +119,158 @@ void updateLastSensorId(int lastId) {
 }
 
 String getAllSensorData(const char* path) {
-    File file = LittleFS.open(path, "r");
-    if (!file) {
-        Serial.println("Failed to open file for reading");
-        return "{}";  // Retorna um objeto JSON vazio em caso de falha
-    }
+  File file = LittleFS.open(path, "r");
+  if (!file) {
+    Serial.println("Failed to open file for reading");
+    return "{}";  // Retorna um objeto JSON vazio em caso de falha
+  }
 
-    // Ignora o cabeçalho
-    if (file.available()) {
-        file.readStringUntil('\n');
-    }
+  // Ignora o cabeçalho
+  if (file.available()) {
+    file.readStringUntil('\n');
+  }
 
-    DynamicJsonDocument doc(2048);  // Ajuste o tamanho conforme necessário
-    JsonArray array = doc.to<JsonArray>();
+  DynamicJsonDocument doc(2048);  // Ajuste o tamanho conforme necessário
+  JsonArray array = doc.to<JsonArray>();
 
-    while (file.available()) {
-        String line = file.readStringUntil('\n');
-        std::vector<String> data = split(line, ';');  // Assumindo que seus dados estão separados por ponto-e-vírgula
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    std::vector<String> data = split(line, ';');  // Assumindo que seus dados estão separados por ponto-e-vírgula
 
-        // Verificar se a variável isDeleted é false
-        if (data.size() >= 10) {
-            data[9].trim();  // Remove espaços em branco ao redor
-           
-            if (data[9] == "false") {
-                JsonObject obj = array.createNestedObject();
+    // Verificar se a variável isDeleted é false
+    if (data.size() >= 10) {
+      data[9].trim();  // Remove espaços em branco ao redor
 
-                obj["Id"] = data[0].toInt();
-                obj["Nome"] = data[1];
-                obj["Tipo"] = data[2];
-                obj["Pin"] = data[3];
-                obj["ModoOperacao"] = data[4];
+      if (data[9] == "false") {
+        JsonObject obj = array.createNestedObject();
 
-                obj["Valor"] = readSensorValue(data[3].toInt(), data[4]);
-                obj["DataCriacao"] = data[6];
-                obj["DispositivoId"] = data[7].toInt();
-                obj["Unidade"] = data[8];
-                obj["DataUltimaObs"] = getFormattedTime();
+        obj["Id"] = data[0].toInt();
+        obj["Nome"] = data[1];
+        obj["Tipo"] = data[2];
+        obj["Pin"] = data[3];
+        obj["ModoOperacao"] = data[4];
+        //data[3].trim();
+        obj["Valor"] = readSensorValue(1, data[4], data[2]);
+        obj["DataCriacao"] = data[6];
+        obj["DispositivoId"] = data[7].toInt();
+        obj["Unidade"] = data[8];
+        obj["DataUltimaObs"] = getFormattedTime();
+        Serial.print("data[3]-->");
+        Serial.println(data[3]);
 
-                String unit = obj["DataUltimaObs"].as<String>();
+        String unit = obj["DataUltimaObs"].as<String>();
 
-                if (!unit.isEmpty() && unit[unit.length() - 1] == '\r') {
-                    unit.remove(unit.length() - 1);  // Remove o último caractere se for um carriage return
-                    obj["DataUltimaObs"] = unit;     // Atualiza o objeto JSON
-                }
-            }
+        if (!unit.isEmpty() && unit[unit.length() - 1] == '\r') {
+          unit.remove(unit.length() - 1);  // Remove o último caractere se for um carriage return
+          obj["DataUltimaObs"] = unit;     // Atualiza o objeto JSON
         }
+      }
     }
-    file.close();
+  }
+  file.close();
 
-    String result;
-    serializeJson(doc, result);
+  String result;
+  serializeJson(doc, result);
 
-    return result;
+  return result;
 }
 
 
 
+float readSensorValue(int pin, String modoOperacao, String tipo) {
 
-float readSensorValue(int pin, String tipo) {
-  if (tipo == "Analogico") {
-    // Serial.print("1023 - Valor Analogico Lido: ");
-    // Serial.println(1023 - analogRead(pin));
-    return 1023 - analogRead(pin);
-  } else if (tipo == "Digital") {
-    return digitalRead(pin);
+  Serial.println("Starting readSensorValue");
+
+
+  Serial.print("Parameters: pin=");
+  Serial.print(pin);
+  Serial.print(", modoOperacao=");
+  Serial.print(modoOperacao);
+  Serial.print(", tipo=");
+  Serial.println(tipo);
+
+  if (modoOperacao == "Analogico") {
+    Serial.println("ModoOperacao is Analogico");
+    float analogValue = 1023 - analogRead(pin);
+    Serial.print("Analog read value: ");
+    Serial.println(analogValue);
+    return analogValue;
+  } else if (modoOperacao == "Digital") {
+    Serial.println("ModoOperacao is Digital");
+    Serial.print("Entrei com o PIN -->");
+    Serial.println(pin);
+    tipo.trim();
+    if (tipo == "DHT11") {
+      // DHT dht(5, DHT11);  // Inicializa o sensor DHT11 no pino especificado
+      // dht.begin();
+      // delay(2000);
+      // Serial.println("Lendo temperatura do DHT11...");
+      // float temp = dht.readTemperature();  // Lê a temperatura
+
+      // // Verifica se a leitura falhou e tenta novamente se falhou
+      // if (isnan(temp)) {
+      //   Serial.println("Falha na leitura do sensor DHT11, tentando novamente...");
+      //   temp = dht.readTemperature();
+      //   if (isnan(temp)) {
+      //     Serial.println("Falha na segunda tentativa de leitura do DHT11");
+      //     return -1;
+      //   }
+      // }
+
+      //return temp;
+    }
+    Serial.println("Reading digital value from pin");
+    int digitalValue = digitalRead(pin);
+    Serial.print("Digital read value: ");
+    Serial.println(digitalValue);
+    return digitalValue;
   }
+  Serial.println("ModoOperacao not recognized, returning default value 0");
   return 0;  // Retorna 0 como default se o tipo de sensor não for reconhecido
 }
 
+
+
 bool deleteSensorById(const char* filePath, int targetID) {
-    if (!LittleFS.begin()) {
-        Serial.println("Erro ao montar o sistema de ficheiros LittleFS");
-        return false;
-    }
+  if (!LittleFS.begin()) {
+    Serial.println("Erro ao montar o sistema de ficheiros LittleFS");
+    return false;
+  }
 
-    File file = LittleFS.open(filePath, "r");
+  File file = LittleFS.open(filePath, "r");
+  if (!file) {
+    Serial.println("Erro ao abrir o ficheiro para leitura");
+    return false;
+  }
+
+  String fileContent = "";
+  bool updated = false;
+
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    if (line.startsWith(String(targetID) + ";")) {
+      // Atualiza a variável isDeleted para true
+      int lastSemicolonIndex = line.lastIndexOf(';');
+      line = line.substring(0, lastSemicolonIndex + 1) + "true";
+      updated = true;
+    }
+    fileContent += line + "\n";
+  }
+  file.close();
+
+  if (updated) {
+    file = LittleFS.open(filePath, "w");
     if (!file) {
-        Serial.println("Erro ao abrir o ficheiro para leitura");
-        return false;
+      Serial.println("Erro ao abrir o ficheiro para escrita");
+      return false;
     }
-
-    String fileContent = "";
-    bool updated = false;
-    
-    while (file.available()) {
-        String line = file.readStringUntil('\n');
-        if (line.startsWith(String(targetID) + ";")) {
-            // Atualiza a variável isDeleted para true
-            int lastSemicolonIndex = line.lastIndexOf(';');
-            line = line.substring(0, lastSemicolonIndex + 1) + "true";
-            updated = true;
-        }
-        fileContent += line + "\n";
-    }
+    file.print(fileContent);
     file.close();
-
-    if (updated) {
-        file = LittleFS.open(filePath, "w");
-        if (!file) {
-            Serial.println("Erro ao abrir o ficheiro para escrita");
-            return false;
-        }
-        file.print(fileContent);
-        file.close();
-        return true;
-    } else {
-        Serial.println("ID não encontrado no ficheiro");
-        return false;
-    }
+    return true;
+  } else {
+    Serial.println("ID não encontrado no ficheiro");
+    return false;
+  }
 }
 
 
@@ -313,4 +361,21 @@ bool deleteSensorRequest(int sensorId) {
     Serial.println("Falha ao enviar a requisição de exclusão.");
     return false;
   }
+}
+
+float lerDHT11(DHT dht) {
+  Serial.print("Lendo temperatura do DHT11...");
+  float temp = dht.readTemperature();
+  Serial.println(temp);
+
+  // Verifica se a leitura falhou e tenta novamente se falhou
+  if (isnan(temp)) {
+    Serial.println("Falha na leitura do sensor DHT11, tentando novamente...");
+    temp = dht.readTemperature();
+    if (isnan(temp)) {
+      Serial.println("Falha na segunda tentativa de leitura do DHT11");
+    }
+  }
+
+  return temp;
 }
