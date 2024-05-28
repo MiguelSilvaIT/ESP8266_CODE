@@ -155,8 +155,7 @@ String getAllSensorData(const char* path) {
         obj["DispositivoId"] = data[7].toInt();
         obj["Unidade"] = data[8];
         obj["DataUltimaObs"] = getFormattedTime();
-        Serial.print("data[3]-->");
-        Serial.println(data[3]);
+
 
         String unit = obj["DataUltimaObs"].as<String>();
 
@@ -179,26 +178,15 @@ String getAllSensorData(const char* path) {
 
 float readSensorValue(int pin, String modoOperacao, String tipo) {
 
-  Serial.println("Starting readSensorValue");
 
-
-  Serial.print("Parameters: pin=");
-  Serial.print(pin);
-  Serial.print(", modoOperacao=");
-  Serial.print(modoOperacao);
-  Serial.print(", tipo=");
-  Serial.println(tipo);
 
   if (modoOperacao == "Analogico") {
-    Serial.println("ModoOperacao is Analogico");
     float analogValue = 1023 - analogRead(pin);
     Serial.print("Analog read value: ");
     Serial.println(analogValue);
     return analogValue;
   } else if (modoOperacao == "Digital") {
-    Serial.println("ModoOperacao is Digital");
-    Serial.print("Entrei com o PIN -->");
-    Serial.println(pin);
+
     tipo.trim();
     if (tipo == "DHT11") {
       // DHT dht(5, DHT11);  // Inicializa o sensor DHT11 no pino especificado
@@ -219,7 +207,6 @@ float readSensorValue(int pin, String modoOperacao, String tipo) {
 
       //return temp;
     }
-    Serial.println("Reading digital value from pin");
     int digitalValue = digitalRead(pin);
     Serial.print("Digital read value: ");
     Serial.println(digitalValue);

@@ -52,3 +52,45 @@ bool handleESPConfig(JsonDocument& doc) {
 }
 
 
+String readESPConfig() {
+    File configFile = LittleFS.open("/config.txt", "r");
+    if (!configFile) {
+        Serial.println("Failed to open config file for reading");
+        return "";
+    }
+
+    String header = configFile.readStringUntil('\n');  // Read the header line
+    String line = configFile.readStringUntil('\n');    // Read the first (and presumably only) line of data
+
+    configFile.close();
+
+    if (line.length() == 0) {
+        Serial.println("No data found in config file");
+        return "";
+    }
+
+    // Parse the CSV line
+    int nameEnd = line.indexOf(';');
+    int descriptionEnd = line.indexOf(';', nameEnd + 1);
+    
+    if (nameEnd == -1 || descriptionEnd == -1) {
+        Serial.println("Invalid config format");
+        return "";
+    }
+
+    String name = line.substring(0, nameEnd);
+    String description = line.substring(nameEnd + 1, descriptionEnd);
+    String centralIP = line.substring(descriptionEnd + 1);
+
+    // Create the JSON document
+    DynamicJsonDocument doc(1024);
+    doc["name"] = name;
+    doc["description"] = description;
+    doc["centralIP"] = centralIP;
+
+    String jsonString;
+    serializeJson(doc, jsonString);
+    return jsonString;
+}
+
+

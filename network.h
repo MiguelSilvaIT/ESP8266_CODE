@@ -12,6 +12,7 @@ void setupWiFi();
 void configureWebServer(AsyncWebServer &server);
 void postAllData(String url, const char* configPath, const char* sensorPath, const char* actuatorPath);
 bool deleteSensorRequest(int sensorId);
+String readESPConfig();
 
 
 #endif

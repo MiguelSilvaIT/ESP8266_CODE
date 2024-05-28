@@ -44,7 +44,7 @@ void setup() {
 void loop() {
 
   
-  float t = lerDHT11(dht);
+  //float t = lerDHT11(dht);
 
 
   // Atualização do NTP Client

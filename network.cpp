@@ -62,11 +62,11 @@ void configureWebServer(AsyncWebServer& server) {
 
         String result = addSensor(sensors_path, doc);
         if (result == "Pin is already in use") {
-          request->send(409, "application/json",  result);
+          request->send(409, "application/json", result);
         } else if (result == "Failed to open file for writing" || result == "Failed to open file for appending" || result == "Append failed") {
-          request->send(500, "application/json",  result );
+          request->send(500, "application/json", result);
         } else {
-          request->send(200, "application/json",  result );
+          request->send(200, "application/json", result);
         }
       }
 
@@ -187,11 +187,11 @@ void configureWebServer(AsyncWebServer& server) {
 
         String result = addAtuador(atuadores_path, doc);  // Call the modified addAtuador function
         if (result == "Pin is already in use") {
-          request->send(409, "application/json",  result );
+          request->send(409, "application/json", result);
         } else if (result == "Failed to open file for writing" || result == "Failed to open file for appending" || result == "Append failed") {
-          request->send(500, "application/json",  result );
+          request->send(500, "application/json", result);
         } else {
-          request->send(200, "application/json",  result );
+          request->send(200, "application/json", result);
         }
       }
 
@@ -245,7 +245,7 @@ void configureWebServer(AsyncWebServer& server) {
   //--FIM SECÇÃO ATUADORES--
 
 
-  //--DISPOSITICO--
+  //--DISPOSITIVO--
 
   server.on(
     "/esp/config", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
@@ -275,6 +275,21 @@ void configureWebServer(AsyncWebServer& server) {
       }
     });
 
+
+  
+  
+  server.on("/esp", HTTP_GET, [](AsyncWebServerRequest* request) {
+    
+    String configData = readESPConfig();
+    Serial.print("configData-->");
+    Serial.println(configData);
+    
+    if (configData == "") {
+      request->send(500, "application/json", "{\"message\":\"Failed to read configuration\"}");
+    } else {
+      request->send(200, "application/json", configData);
+    }
+  });
 
   server.onNotFound([](AsyncWebServerRequest* request) {
     Serial.println("OPTIONS PRE-FLIGHT REQUEST RECEIVED");
