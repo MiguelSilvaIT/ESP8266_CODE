@@ -21,6 +21,8 @@ extern const char* config_path;
 
 extern String centralIP;
 
+extern const char* id_path;
+
 
 
 #endif

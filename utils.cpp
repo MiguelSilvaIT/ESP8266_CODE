@@ -159,7 +159,7 @@ void readSensorsAndActuators(JsonArray& sensors, JsonArray& actuators, const cha
         sensor["Tipo"] = fields[2];
         sensor["Pin"] = fields[3];
         sensor["ModoOperacao"] = fields[4];
-        sensor["Valor"] = readSensorValue(1, fields[4], fields[2]);
+        sensor["Valor"] = readSensorValue(fields[3].toInt(), fields[4], fields[2]);
         sensor["DataCriacao"] = fields[6];
         sensor["DispositivoId"] = fields[7];
         sensor["Unidade"] = fields[8];
@@ -267,4 +267,84 @@ bool sendPostRequest(const char* url, const String& payload) {
     Serial.println("WiFi not connected");
     return false;
   }
+}
+
+
+String addDevice(const char* path, JsonDocument& doc) {
+    String pin = doc["pin"];
+    if (isPinUsed(path, pin)) {
+        Serial.println("Pin is already in use");
+        return "Pin is already in use";  
+    }
+
+    if (!LittleFS.exists(path)) {
+        File file = LittleFS.open(path, "w");
+        if (!file) {
+            Serial.println("Failed to open file for writing");
+            return "Failed to open file for writing";
+        }
+        file.println("ID;Nome;Tipo;Pin;ModoOperacao;Valor;DataCriacao;DispositivoId;Unidade;isDeleted");
+        file.close();
+    }
+
+    int lastId = readLastDeviceId(id_path);
+    lastId++;
+    doc["id"] = lastId;
+
+    File file = LittleFS.open(path, "a");
+    if (!file) {
+        Serial.println("Failed to open file for appending");
+        return "Failed to open file for appending";
+    }
+
+    String dataString = String(doc["id"].as<int>()) + ";" + String((const char*)doc["nome"]) + ";"
+                        + String((const char*)doc["tipo"]) + ";" + String((const char*)doc["pin"]) + ";"
+                        + String((const char*)doc["modoOperacao"]) + ";" + String((float)doc["valor"]) + ";"
+                        + String((const char*)doc["dtCriacao"]) + ";" + String((int)doc["dispositivoId"]) + ";"
+                        + String((const char*)doc["unidade"]) + ";false";
+
+    if (file.println(dataString)) {
+        Serial.println("Device data appended");
+        updateLastDeviceId(id_path, lastId);
+        file.close();
+        return "Device data appended successfully";
+    } else {
+        Serial.println("Append failed");
+        file.close();
+        return "Append failed";
+    }
+}
+
+
+int readLastDeviceId(const char* path) {
+    if (!LittleFS.exists(path)) {
+        Serial.println("No ID file found, starting from ID 0");
+        return -1; // Ou return 0 se preferir começar os IDs de 1
+    }
+
+    File file = LittleFS.open(path, "r");
+    if (!file) {
+        Serial.println("Failed to open file for reading last ID");
+        return -1; // Retorna -1 se não puder abrir o arquivo
+    }
+
+    String idStr = file.readStringUntil('\n');
+    file.close();
+
+    Serial.print("Last Device Id -->");
+    Serial.println(idStr);
+
+    return idStr.toInt(); // Converte a string lida para int e retorna
+}
+
+void updateLastDeviceId(const char* path, int lastId) {
+    File file = LittleFS.open(path, "w");
+    if (!file) {
+        Serial.println("Failed to open file for updating last ID");
+        return;
+    }
+
+    file.println(lastId); // Escreve o novo último ID no arquivo
+    file.close();
+    Serial.println("Last ID updated successfully to " + String(lastId));
 }

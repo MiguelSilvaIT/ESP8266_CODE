@@ -32,20 +32,13 @@ void configureWebServer(AsyncWebServer& server) {
   });
 
 
-
-  //ADICIONAR SENSOR
   server.on(
-
-    "/addSensor", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
-      // Cria um documento JSON para armazenar os dados recebidos
-
-      static String jsonData;  // Use static to preserve the value across calls
+    "/addDevice", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+      static String jsonData;
       for (size_t i = 0; i < len; i++) {
         jsonData += (char)data[i];
       }
-      if (index + len == total) {  // Check if this is the last chunk
-        // Now jsonData contains the complete JSON string
-
+      if (index + len == total) {
         Serial.println("-------------------------");
         Serial.println(jsonData);
         Serial.println("-------------------------");
@@ -58,9 +51,15 @@ void configureWebServer(AsyncWebServer& server) {
           Serial.println(error.c_str());
           request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
         }
-        jsonData = "";  // Clear the jsonData for the next message
+        jsonData = "";
 
-        String result = addSensor(sensors_path, doc);
+        
+        
+        const char* path = doc["tipoDispositivo"] == "sensor" ? sensors_path : atuadores_path;
+
+
+        String result = addDevice(path, doc);
+
         if (result == "Pin is already in use") {
           request->send(409, "application/json", result);
         } else if (result == "Failed to open file for writing" || result == "Failed to open file for appending" || result == "Append failed") {
@@ -69,62 +68,8 @@ void configureWebServer(AsyncWebServer& server) {
           request->send(200, "application/json", result);
         }
       }
-
-
-
-      readSensor(sensors_path);
     });
 
-
-
-
-
-
-
-
-
-  server.on("/clearSensorData", HTTP_DELETE, [](AsyncWebServerRequest* request) {
-    clearSensorData(sensors_path);  // Chama a função para limpar os dados
-    request->send(200, "application/json", "{\"message\":\"Sensor data cleared successfully\"}");
-  });
-
-  server.on(
-    "/sensors", HTTP_PUT, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
-      static String jsonData;
-      int sensorId;
-
-      if (request->hasParam("id", true)) {
-        sensorId = request->getParam("id", true)->value().toInt();
-      } else {
-        request->send(404, "application/json", "{\"message\":\"Sensor ID not found\"}");
-      }
-      for (size_t i = 0; i < len; i++) {
-        jsonData += (char)data[i];
-      }
-      if (index + len == total) {
-        DynamicJsonDocument doc(1024);
-        DeserializationError error = deserializeJson(doc, jsonData);
-        if (error) {
-          request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
-          return;
-        }
-        jsonData = "";
-
-        SensorData newData = {
-          doc["nome"].as<String>(),
-          doc["tipo"].as<String>(),
-          doc["modoOperacao"].as<String>(),
-          doc["unidade"].as<String>(),
-          doc["pin"].as<int>(),
-        };
-
-        if (updateSensorById(sensors_path, sensorId, newData)) {
-          request->send(200, "application/json", "{\"message\":\"Sensor updated successfully\"}");
-        } else {
-          request->send(500, "application/json", "{\"message\":\"Failed to update sensor\"}");
-        }
-      }
-    });
 
 
   server.on("/ip", HTTP_GET, [](AsyncWebServerRequest* request) {
@@ -160,50 +105,7 @@ void configureWebServer(AsyncWebServer& server) {
     request->send(200, "application/json", atuadorData);
   });
 
-  server.on(
-    "/atuadores", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL, [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
-      // Cria um documento JSON para armazenar os dados recebidos
 
-      static String jsonData;  // Use static to preserve the value across calls
-      for (size_t i = 0; i < len; i++) {
-        jsonData += (char)data[i];
-      }
-      if (index + len == total) {  // Check if this is the last chunk
-        // Now jsonData contains the complete JSON string
-
-        Serial.println("-------------------------");
-        Serial.println(jsonData);
-        Serial.println("-------------------------");
-
-        DynamicJsonDocument doc(1024);
-        DeserializationError error = deserializeJson(doc, jsonData);
-
-        if (error) {
-          Serial.print("Erro de serialização:");
-          Serial.println(error.c_str());
-          request->send(400, "application/json", "{\"message\":\"Invalid JSON\"}");
-        }
-        jsonData = "";  // Clear the jsonData for the next message
-
-        String result = addAtuador(atuadores_path, doc);  // Call the modified addAtuador function
-        if (result == "Pin is already in use") {
-          request->send(409, "application/json", result);
-        } else if (result == "Failed to open file for writing" || result == "Failed to open file for appending" || result == "Append failed") {
-          request->send(500, "application/json", result);
-        } else {
-          request->send(200, "application/json", result);
-        }
-      }
-
-      AsyncWebServerResponse* response = request->beginResponse(200, "application/json", "{\"message\":\"Atuador added successfully\"}");
-
-      readAtuador(atuadores_path);
-    });
-
-  server.on("/clearAtuadorData", HTTP_DELETE, [](AsyncWebServerRequest* request) {
-    clearAtuadorData(atuadores_path);  // Chama a função para limpar os dados
-    request->send(200, "application/json", "{\"message\":\"Atuador data cleared successfully\"}");
-  });
 
   server.on("/toggleAtuador", HTTP_POST, [](AsyncWebServerRequest* request) {
     int atuadorPin = 0;

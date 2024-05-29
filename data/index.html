@@ -3,8 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Access-Control-Allow-Origin" content="*"/>
-
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plataforma IoT - Laboratório Inteligente</title>
     <!-- Bootstrap CSS -->
@@ -13,7 +11,9 @@
     <!--Axios-->
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <!--JS-->
-    <script src="sensores.js"></script>
+    <!-- <script src="sensores.js"></script>
+    <script src="atuadores.js"></script> -->
+    <script src="main.js"></script>
     <script src="utils.js"></script>
 
 </head>
@@ -28,19 +28,11 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ml-auto">
                 <li class="nav-item active">
-                    <a class="nav-link" href="#">Sensores</a>
+                    <a class="nav-link" href="#">Controlador</a>
                 </li>
-
                 <li class="nav-item">
-                  <a class="nav-link" href="atuadores.html">Atuadores</a>
+                  <a class="nav-link" href="esp_config.html">Configurações</a>
                 </li>
-
-                <li class="nav-item">
-                  <a class="nav-link" href="esp_config.html">Dispositivo</a>
-                </li>
-              
-                
-               
             </ul>
         </div>
     </div>
@@ -51,31 +43,36 @@
         <input type="text" id="ipEsp" name="ipEsp" required>
         <br>
 
-<button type="button" class="btn btn-primary" id="cleanSensorData">Apagar sensores</button>
-
-
 <div class="container mt-5">
-    <div class="row">
-            
-        </div>
-        <!-- Adicione mais cards para outros valores, se necessário -->
+    <div class="row" id="sensores">
+        <!-- Adicione aqui os cards dos sensores -->
+    </div>
+    <div class="row mt-5" id="atuadores">
+        <!-- Adicione aqui os cards dos atuadores -->
     </div>
 </div>
 
 <div class="container mt-5">
-    <h2>Adicionar Novo Sensor</h2>
-    <form id="formSensor">
+    <h2>Adicionar Novo Dispositivo</h2>
+    <form id="formDispositivo">
         <div class="form-group">
-            <label for="nomeSensor">Nome do Sensor:</label>
-            <input type="text" class="form-control" id="nomeSensor" required>
+            <label for="tipoDispositivo">Tipo de Dispositivo:</label>
+            <select class="form-control" id="tipoDispositivo" required>
+                <option value="sensor">Sensor</option>
+                <option value="atuador">Atuador</option>
+            </select>
         </div>
         <div class="form-group">
-            <label for="tipoSensor">Tipo:</label>
-            <input type="text" class="form-control" id="tipoSensor" required>
+            <label for="nomeDispositivo">Nome do Dispositivo:</label>
+            <input type="text" class="form-control" id="nomeDispositivo" required>
         </div>
         <div class="form-group">
-            <label for="pinSensor">Pin do Sensor:</label>
-            <input type="text" class="form-control" id="pinSensor" required>
+            <label for="tipoDispositivo">Tipo:</label>
+            <input type="text" class="form-control" id="tipoDispositivoDetalhe" required>
+        </div>
+        <div class="form-group">
+            <label for="pinDispositivo">Pin do Dispositivo:</label>
+            <input type="text" class="form-control" id="pinDispositivo" required>
         </div>
         <div class="form-group">
             <label for="modoOperacao">Modo de Operação:</label>
@@ -87,75 +84,19 @@
         <div class="form-group">
             <label for="idUnidade">ID da Unidade:</label>
             <select class="form-control unidade-dropdown" id="idUnidade">
-                <!-- Opções de unidades serão adicionadas aqui -->
                 <option value="1">Cº</option>
                 <option value="2">F</option>
                 <option value="3">K</option>
                 <option value="4">Lumens</option>
-                
+                <option value="5">Bool</option>
+                <option value="6">Numerico</option>
             </select>
         </div>
-        
-        <button type="submit" class="btn btn-primary">Adicionar Sensor</button>
+        <button type="submit" class="btn btn-primary">Adicionar Dispositivo</button>
     </form>
 </div>
 
 
-<!-- Modal de Edição do Sensor -->
-<div class="modal fade" id="modalEditarSensor" tabindex="-1" role="dialog" aria-labelledby="modalEditarSensorLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="modalEditarSensorLabel">Editar Sensor</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <!-- Formulário de Edição -->
-          <form id="formEditarSensor">
-            <div class="form-group">
-              <label for="editarNomeSensor">Nome do Sensor:</label>
-              <input type="text" class="form-control" id="editarNomeSensor" required>
-            </div>
-            <div class="form-group">
-              <label for="editarPinSensor">Pin do Sensor:</label>
-              <input type="text" class="form-control" id="editarPinSensor" required>
-            </div>
-            
-            <div class="form-group">
-              <label for="editarTipoSensor">Tipo:</label>
-              <input type="text" class="form-control" id="editarTipo" required>
-            </div>
-            <div class="form-group">
-              <label for="editarModoOperacao">Modo de Operação:</label>
-              <select class="form-control" id="editarModoOperacao">
-                <option value="1">Analogico</option>
-                <option value="2">Digital</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="editarIdUnidade">ID da Unidade:</label>
-              <select class="form-control unidade-dropdown" id="editarUnidade">
-                <!-- Opções de unidades serão adicionadas aqui -->
-                <option value="1">Cº</option>
-                <option value="2">F</option>
-                <option value="3">K</option>
-                <option value="4">Lumens</option>
-              </select>
-            </div>
-            
-            <input type="hidden" id="editarSensorId">
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="salvarEdicao">Salvar Alterações</button>
-          <button type="button" class="btn btn-danger" id="excluirSensor">Excluir Sensor</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
 <!-- Bootstrap JS, Popper.js, and jQuery -->
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

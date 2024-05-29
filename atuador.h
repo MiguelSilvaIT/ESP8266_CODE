@@ -12,25 +12,13 @@ struct AtuadorData {
     int pin;
 };
 
-// Função para adicionar dados de atuador ao arquivo
-String addAtuador(const char* path, JsonDocument& doc);
 
 // Função para ler os dados do atuador de um arquivo
 void readAtuador(const char* path);
 
-void clearAtuadorData(const char* path);
-
-int readLastAtuadorId();
-
-void updateLastAtuadorId(int lastId);
-
 String getAllAtuadorData(const char* path);
 
-
 float readAtuadorValue(int pin, String tipo);
-
-
-bool updateAtuadorById(const char* path, int atuadorId, const AtuadorData& newData);
 
 bool setAtuadorValue(int pin, float value, String tipo);
 

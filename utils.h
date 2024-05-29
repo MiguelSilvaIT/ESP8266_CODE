@@ -28,7 +28,9 @@ String getCentralIP();
 void initCentralIP();
 bool sendPostRequest(const char* url, const String& payload);
 
-
+String addDevice(const char* path, JsonDocument& doc);
+int readLastDeviceId(const char* path);
+void updateLastDeviceId(const char* path, int lastId);
 
 
 
