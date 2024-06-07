@@ -66,9 +66,16 @@
             <label for="nomeDispositivo">Nome do Dispositivo:</label>
             <input type="text" class="form-control" id="nomeDispositivo" required>
         </div>
-        <div class="form-group">
-            <label for="tipoDispositivo">Tipo:</label>
-            <input type="text" class="form-control" id="tipoDispositivoDetalhe" required>
+         <div class="form-group">
+            <label for="tipoDispositivoDetalhe">Tipo:</label>
+            <select class="form-control" id="tipoDispositivoDetalhe" required>
+                <option value="temperatura">Temperatura</option>
+                <option value="luminosidade">Luminosidade</option>
+                <option value="humidade">Humidade</option>
+                <option value="pressao">Pressão</option>
+				<option value="led">Led</option>
+				<option value="sprinkler">Sprinkler</option>
+            </select>
         </div>
         <div class="form-group">
             <label for="pinDispositivo">Pin do Dispositivo:</label>

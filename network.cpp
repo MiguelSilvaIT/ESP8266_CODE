@@ -1,7 +1,5 @@
 #include "network.h"
 #include "filesystem.h"  // Para funções do sistema de arquivos
-#include "sensor.h"
-#include "atuador.h"
 #include "config.h"
 #include "utils.h"
 
@@ -79,7 +77,7 @@ void configureWebServer(AsyncWebServer& server) {
 
   //Obter todos os sensores
   server.on("/sensors", HTTP_GET, [](AsyncWebServerRequest* request) {
-    String sensorData = getAllSensorData(sensors_path);  // Substitua pelo caminho correto do arquivo
+    String sensorData = getAllDeviceData(sensors_path);  // Substitua pelo caminho correto do arquivo
     request->send(200, "application/json", sensorData);
   });
 
@@ -90,7 +88,7 @@ void configureWebServer(AsyncWebServer& server) {
     }
     int sensorId = request->getParam("id")->value().toInt();  // Extract the sensor ID from the request
 
-    if (deleteSensorById(sensors_path, sensorId)) {
+    if (deleteDeviceById(sensors_path, sensorId)) {
       request->send(200, "application/json", "{\"message\":\"Sensor deleted successfully\"}");
     } else {
       request->send(404, "application/json", "{\"message\":\"Sensor not found\"}");
@@ -101,7 +99,7 @@ void configureWebServer(AsyncWebServer& server) {
   //ATUADORES
 
   server.on("/atuadores", HTTP_GET, [](AsyncWebServerRequest* request) {
-    String atuadorData = getAllAtuadorData(atuadores_path);  // Substitua pelo caminho correto do arquivo
+    String atuadorData = getAllDeviceData(atuadores_path);  // Substitua pelo caminho correto do arquivo
     request->send(200, "application/json", atuadorData);
   });
 
@@ -137,7 +135,7 @@ void configureWebServer(AsyncWebServer& server) {
     }
     int atuadorId = request->getParam("id")->value().toInt();  // Extract the atuador ID from the request
 
-    if (deleteAtuadorById(atuadores_path, atuadorId)) {
+    if (deleteDeviceById(atuadores_path, atuadorId)) {
       request->send(200, "application/json", "{\"message\":\"Atuador deleted successfully\"}");
     } else {
       request->send(404, "application/json", "{\"message\":\"Atuador not found\"}");

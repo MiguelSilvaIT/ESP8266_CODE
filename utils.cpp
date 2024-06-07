@@ -159,7 +159,7 @@ void readSensorsAndActuators(JsonArray& sensors, JsonArray& actuators, const cha
         sensor["Tipo"] = fields[2];
         sensor["Pin"] = fields[3];
         sensor["ModoOperacao"] = fields[4];
-        sensor["Valor"] = readSensorValue(fields[3].toInt(), fields[4], fields[2]);
+        sensor["Valor"] = readDeviceValue(fields[3].toInt(), fields[4], fields[2]);
         sensor["DataCriacao"] = fields[6];
         sensor["DispositivoId"] = fields[7];
         sensor["Unidade"] = fields[8];
@@ -192,7 +192,7 @@ void readSensorsAndActuators(JsonArray& sensors, JsonArray& actuators, const cha
         actuator["Tipo"] = fields[2];
         actuator["Pin"] = fields[3];
         actuator["ModoOperacao"] = fields[4];
-        actuator["Valor"] = readAtuadorValue(fields[3].toInt(), fields[4]);
+        actuator["Valor"] = readDeviceValue(fields[3].toInt(), fields[4],fields[2] );
         actuator["DataCriacao"] = fields[6];
         actuator["DispositivoId"] = fields[7];
         actuator["Unidade"] = fields[8];
@@ -348,3 +348,140 @@ void updateLastDeviceId(const char* path, int lastId) {
     file.close();
     Serial.println("Last ID updated successfully to " + String(lastId));
 }
+
+
+float readDeviceValue(int pin, String modoOperacao, String tipo) {
+
+  if (modoOperacao == "Analogico") 
+  {
+    float analogValue = 1023 - analogRead(pin);
+    Serial.print("Analog read value PIN-->: ");
+    Serial.println(pin);
+    return analogValue;
+  } 
+  else if (modoOperacao == "Digital") {
+
+    tipo.trim();
+    int digitalValue = digitalRead(pin);
+    Serial.print("Digital read value: ");
+    Serial.println(digitalValue);
+    return digitalValue;
+  }
+  Serial.println("ModoOperacao not recognized, returning default value 0");
+  return 0;  // Retorna 0 como default se o tipo de sensor não for reconhecido
+}
+
+String getAllDeviceData(const char* path) {
+  File file = LittleFS.open(path, "r");
+  if (!file) {
+    Serial.println("Failed to open file for reading");
+    return "{}";  // Retorna um objeto JSON vazio em caso de falha
+  }
+
+  // Ignora o cabeçalho
+  if (file.available()) {
+    file.readStringUntil('\n');
+  }
+
+  DynamicJsonDocument doc(2048);  // Ajuste o tamanho conforme necessário
+  JsonArray array = doc.to<JsonArray>();
+
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    std::vector<String> data = split(line, ';');  // Assumindo que seus dados estão separados por ponto-e-vírgula
+
+    // Verificar se a variável isDeleted é false
+    if (data.size() >= 10) {
+      data[9].trim();  // Remove espaços em branco ao redor
+
+      if (data[9] == "false") {
+        JsonObject obj = array.createNestedObject();
+
+        obj["Id"] = data[0].toInt();
+        obj["Nome"] = data[1];
+        obj["Tipo"] = data[2];
+        obj["Pin"] = data[3];
+        obj["ModoOperacao"] = data[4];
+        //data[3].trim();
+        obj["Valor"] = readDeviceValue(data[3].toInt(), data[4], data[2]);
+        obj["DataCriacao"] = data[6];
+        obj["DispositivoId"] = data[7].toInt();
+        obj["Unidade"] = data[8];
+        obj["DataUltimaObs"] = getFormattedTime();
+
+
+        String unit = obj["DataUltimaObs"].as<String>();
+
+        if (!unit.isEmpty() && unit[unit.length() - 1] == '\r') {
+          unit.remove(unit.length() - 1);  // Remove o último caractere se for um carriage return
+          obj["DataUltimaObs"] = unit;     // Atualiza o objeto JSON
+        }
+      }
+    }
+  }
+  file.close();
+
+  String result;
+  serializeJson(doc, result);
+
+  return result;
+}
+
+bool deleteDeviceById(const char* filePath, int targetID) {
+  if (!LittleFS.begin()) {
+    Serial.println("Erro ao montar o sistema de ficheiros LittleFS");
+    return false;
+  }
+
+  File file = LittleFS.open(filePath, "r");
+  if (!file) {
+    Serial.println("Erro ao abrir o ficheiro para leitura");
+    return false;
+  }
+
+  String fileContent = "";
+  bool updated = false;
+
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    if (line.startsWith(String(targetID) + ";")) {
+      // Atualiza a variável isDeleted para true
+      int lastSemicolonIndex = line.lastIndexOf(';');
+      line = line.substring(0, lastSemicolonIndex + 1) + "true";
+      updated = true;
+    }
+    fileContent += line + "\n";
+  }
+  file.close();
+
+  if (updated) {
+    file = LittleFS.open(filePath, "w");
+    if (!file) {
+      Serial.println("Erro ao abrir o ficheiro para escrita");
+      return false;
+    }
+    file.print(fileContent);
+    file.close();
+    return true;
+  } else {
+    Serial.println("ID não encontrado no ficheiro");
+    return false;
+  }
+}
+
+
+bool setAtuadorValue(int pin, float value, String tipo) {
+
+  if (tipo == "Analogico") {
+    analogWrite(pin, (int)value);  // ESP8266 does support analogWrite on certain pins
+    return true;
+  } else if (tipo == "Digital") {
+    digitalWrite(pin, (int)value > 0 ? HIGH : LOW);
+    return true;
+  }
+  
+  return false;  // If type is neither 'Analogico' nor 'Digital'
+  
+}
+
+

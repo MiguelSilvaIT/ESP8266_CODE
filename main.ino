@@ -2,7 +2,6 @@
 
 #include "filesystem.h"
 #include "time_manager.h"
-#include "sensor.h"
 #include "network.h"
 #include "config.h"
 #include "utils.h"
@@ -54,11 +53,12 @@ void loop() {
   if (WiFi.isConnected()) {
     // Obter o IP como String
 
-
+    Serial.print("centralIP.length()-->");
+    Serial.println(centralIP.length());
     // Verificar se o IP foi obtido corretamente antes de fazer a chamada
     if (centralIP.length() > 0) {
       String url = "http://" + centralIP + ":3000/";
-      //postAllData(url, config_path, sensors_path, atuadores_path);
+      postAllData(url, config_path, sensors_path, atuadores_path);
     }
   }
 

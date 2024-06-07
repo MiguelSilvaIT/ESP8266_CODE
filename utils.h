@@ -6,8 +6,7 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
 #include "filesystem.h"
-#include "sensor.h"
-#include "atuador.h"
+#include "time_manager.h"
 #include "config.h"
 
 
@@ -31,6 +30,14 @@ bool sendPostRequest(const char* url, const String& payload);
 String addDevice(const char* path, JsonDocument& doc);
 int readLastDeviceId(const char* path);
 void updateLastDeviceId(const char* path, int lastId);
+
+float readDeviceValue(int pin, String modoOperacao, String tipo);
+
+String getAllDeviceData(const char* path);
+
+bool deleteDeviceById(const char* filePath, int targetID);
+
+bool setAtuadorValue(int pin, float value, String tipo);
 
 
 
