@@ -7,8 +7,8 @@
 void setupWiFi() {
   WiFiManager wifiManager;
 
-
-  if (!wifiManager.autoConnect("ESP8266AP")) {
+  //wifiManager.resetSettings();
+  if (!wifiManager.autoConnect("Smart Lab IoT")) {
     Serial.println("Failed to connect and hit timeout");
     delay(3000);
     ESP.restart();
@@ -56,14 +56,14 @@ void configureWebServer(AsyncWebServer& server) {
         const char* path = doc["tipoDispositivo"] == "sensor" ? sensors_path : atuadores_path;
 
 
-        String result = addDevice(path, doc);
+        int result = addDevice(path, doc);
 
-        if (result == "Pin is already in use") {
-          request->send(409, "application/json", result);
-        } else if (result == "Failed to open file for writing" || result == "Failed to open file for appending" || result == "Append failed") {
-          request->send(500, "application/json", result);
+        if (result == -2) {
+          request->send(409, "application/json", "Pin already in use");
+        } else if (result < -2) {
+          request->send(500, "application/json", std::to_string(result).c_str() );
         } else {
-          request->send(200, "application/json", result);
+          request->send(200, "application/json", std::to_string(result).c_str() );
         }
       }
     });
@@ -77,7 +77,7 @@ void configureWebServer(AsyncWebServer& server) {
 
   //Obter todos os sensores
   server.on("/sensors", HTTP_GET, [](AsyncWebServerRequest* request) {
-    String sensorData = getAllDeviceData(sensors_path);  // Substitua pelo caminho correto do arquivo
+    String sensorData = getAllDeviceData(sensors_path);  
     request->send(200, "application/json", sensorData);
   });
 
@@ -213,8 +213,8 @@ void postAllData(String url, const char* configPath, const char* sensorPath, con
 
   // Utilizar o método sendPostRequest para enviar a requisição
   if (sendPostRequest(url.c_str(), jsonData)) {
-    Serial.println("Dados enviados com sucesso.");
+    //Serial.println("Dados enviados com sucesso.");
   } else {
-    Serial.println("Falha ao enviar os dados.");
+    Serial.println("(postAllData)Falha ao enviar os dados.");
   }
 }

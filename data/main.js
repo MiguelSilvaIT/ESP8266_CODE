@@ -28,7 +28,6 @@ document.addEventListener("DOMContentLoaded", function () {
     // Captura os dados do formulário
     const nomeDispositivo = document.getElementById("nomeDispositivo").value;
     const pinDispositivo = document.getElementById("pinDispositivo").value;
-    //obter texto da unidade selecionada
     const idUnidade =
       document.getElementById("idUnidade").options[
         document.getElementById("idUnidade").selectedIndex
@@ -39,9 +38,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("modoOperacao").selectedIndex
       ].text;
 
-	
-
-    // Prepara o objeto com os dados
+    // Prepara o JSON com os dados
     const dadosDispositivo = {
       id: -1,
       nome: nomeDispositivo,
@@ -57,15 +54,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     jsonString = JSON.stringify(dadosDispositivo);
     console.log(endpointEsp);
-
-    // Envia a requisição POST
+    // Enviar peido POST
     axios
       .post(endpointEsp, dadosDispositivo, {
         headers: { "Content-Type": "application/json" },
       })
       .then((response) => {
         alert("Dispositivo adicionado com sucesso:", response.data);
-        // Aqui você pode adicionar alguma ação após o sucesso, como recarregar a lista de dispositivos
       })
       .catch((error) => {
         alert(error.response.data);

@@ -6,6 +6,7 @@
 #include <ESPAsyncWebServer.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
+#include <string> 
 
 
 void setupWiFi();

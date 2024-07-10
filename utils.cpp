@@ -67,8 +67,6 @@ String readConfig(const char* path, JsonDocument& doc) {
 }
 
 String getCentralIP() {
-    // Tenta abrir o arquivo de configuração
-    Serial.println("Tentando abrir o arquivo de configuração...");
     File configFile = LittleFS.open("/config.txt", "r");
     if (!configFile) {
         Serial.println("Falha ao abrir o arquivo de configuração para leitura");
@@ -77,10 +75,8 @@ String getCentralIP() {
 
     // Ler a linha do cabeçalho para ignorá-la
     if (configFile.available()) {
-        Serial.println("Lendo a linha do cabeçalho...");
         String header = configFile.readStringUntil('\n');
-        Serial.print("Cabeçalho: ");
-        Serial.println(header);
+    
     } else {
         Serial.println("Arquivo de configuração está vazio ou corrompido");
         configFile.close();
@@ -89,21 +85,15 @@ String getCentralIP() {
 
     // Ler a linha seguinte que contém os dados
     if (configFile.available()) {
-        Serial.println("Lendo a linha de dados...");
         String data = configFile.readStringUntil('\n');
-        Serial.print("Dados lidos: ");
-        Serial.println(data);
-
-        // Extrair o IP Central
-        Serial.println("Extraindo o IP Central...");
+    
         int firstSemiColon = data.indexOf(';');
         if (firstSemiColon == -1) {
             Serial.println("Erro ao encontrar o primeiro ponto e vírgula");
             configFile.close();
             return "";
         }
-        Serial.print("Índice do primeiro ponto e vírgula: ");
-        Serial.println(firstSemiColon);
+
 
         int secondSemiColon = data.indexOf(';', firstSemiColon + 1);
         if (secondSemiColon == -1) {
@@ -111,14 +101,12 @@ String getCentralIP() {
             configFile.close();
             return "";
         }
-        Serial.print("Índice do segundo ponto e vírgula: ");
-        Serial.println(secondSemiColon);
+
 
         // Substring desde o caractere após o segundo ponto e vírgula até o final
         String centralIP = data.substring(secondSemiColon + 1);
         centralIP.trim();  // Remover quaisquer espaços em branco ao redor
-        Serial.print("IP Central extraído: ");
-        Serial.println(centralIP);
+
 
         configFile.close();
         return centralIP;
@@ -164,6 +152,8 @@ void readSensorsAndActuators(JsonArray& sensors, JsonArray& actuators, const cha
         sensor["DispositivoId"] = fields[7];
         sensor["Unidade"] = fields[8];
         sensor["isDeleted"] = fields[9];
+        sensor["is_ESP_registed"] = 1;
+        
       }
     }
   }
@@ -197,6 +187,7 @@ void readSensorsAndActuators(JsonArray& sensors, JsonArray& actuators, const cha
         actuator["DispositivoId"] = fields[7];
         actuator["Unidade"] = fields[8];
         actuator["isDeleted"] = fields[9];
+        actuator["is_ESP_registed"] = 1;
       }
     }
   }
@@ -249,14 +240,11 @@ bool sendPostRequest(const char* url, const String& payload) {
     WiFiClient client;
     http.begin(client ,url);
     http.addHeader("Content-Type", "application/json");
-    Serial.print("URL-->");
-    Serial.println(url);
+
     int httpResponseCode = http.POST(payload);
 
     if (httpResponseCode > 0) {
       String response = http.getString();
-      Serial.println("HTTP Response code: " + String(httpResponseCode));
-      Serial.println("Response: " + response);
     } else {
       Serial.println("Error on HTTP request: " + String(httpResponseCode));
     }
@@ -269,23 +257,154 @@ bool sendPostRequest(const char* url, const String& payload) {
   }
 }
 
+String sendGETRequest(const char* url){
+   if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    WiFiClient client;
+    String response;
+    http.begin(client ,url);
+    http.addHeader("Content-Type", "application/json");
+    Serial.print("URL-->");
+    Serial.println(url);
+    int httpResponseCode = http.GET();
 
-String addDevice(const char* path, JsonDocument& doc) {
+    if (httpResponseCode > 0) {
+      response = http.getString();
+      Serial.println("HTTP Response code: " + String(httpResponseCode));
+      Serial.println("Response: " + response);
+    } else {
+      Serial.println("Error on HTTP request: " + String(httpResponseCode));
+    }
+    
+    http.end();
+    return response;
+  } else {
+    Serial.println("WiFi not connected");
+    return "WiFi not connected";
+  }
+}
+
+
+
+
+// Função modificada para extrair rowid e enviar mapeamento para o servidor
+bool checkForUnregisteredDevices(const char* path) {
+  String devices = sendGETRequest(path);
+  Serial.println("Devices-->");
+  Serial.println(devices);
+
+  DynamicJsonDocument doc(2048);
+  DeserializationError error = deserializeJson(doc, devices);
+
+  if (error) {
+    Serial.print("Erro de serialização: ");
+    Serial.println(error.c_str());
+    return false;
+  }
+
+  //caso seja recebido o seguinte JSON "{"sensores":[],"atuadores":[]}"
+ if (doc["sensores"].size() == 0 && doc["atuadores"].size() == 0) {
+    Serial.println("Não há dispositivos não registrados");
+    return false;
+}
+
+  // Arrays para armazenar os mapeamentos de ID
+  std::vector<DeviceIDMapping> sensorMappings;
+  std::vector<DeviceIDMapping> actuatorMappings;
+
+  // Extrair rowid dos sensores (assumindo que você tem uma função para adicionar sensores)
+  for (JsonObject sensor : doc["sensores"].as<JsonArray>()) {
+    int central_id = sensor["central_id"];
+    int newId = addDevice(sensors_path , sensor); // Função fictícia para adicionar sensor e retornar novo ID
+    sensorMappings.push_back({central_id, newId});
+  }
+
+  // Extrair rowid dos atuadores (assumindo que você tem uma função para adicionar atuadores)
+  for (JsonObject actuator : doc["atuadores"].as<JsonArray>()) {
+    int central_id = actuator["central_id"];
+    int newId = addDevice(atuadores_path , actuator); // Função fictícia para adicionar atuador e retornar novo ID
+    actuatorMappings.push_back({central_id, newId});
+  }
+
+  // Enviar mapeamento para o servidor (assumindo que você tem uma função para isso)
+  sendIDMappingToServer(sensorMappings, actuatorMappings);
+
+  return true;
+}
+
+void sendIDMappingToServer(const std::vector<DeviceIDMapping>& sensorMappings, const std::vector<DeviceIDMapping>& actuatorMappings) {
+  // Cria um documento JSON para armazenar os mapeamentos
+  DynamicJsonDocument doc(2048);
+
+  // Cria arrays JSON para sensores e atuadores
+  JsonArray sensorArray = doc.createNestedArray("sensores");
+  JsonArray actuatorArray = doc.createNestedArray("atuadores");
+
+  //debug
+  Serial.println("Mapeamentos de sensores:");
+  for (const DeviceIDMapping& mapping : sensorMappings) {
+    Serial.print("RowID: ");
+    Serial.print(mapping.rowid);
+    Serial.print(", NewID: ");
+    Serial.println(mapping.newId);
+  }
+
+  Serial.println("Mapeamentos de atuadores:");
+  for (const DeviceIDMapping& mapping : actuatorMappings) {
+    Serial.print("RowID: ");
+    Serial.print(mapping.rowid);
+    Serial.print(", NewID: ");
+    Serial.println(mapping.newId);
+  }
+
+  // Adiciona os mapeamentos de sensores ao array JSON
+  for (const DeviceIDMapping& mapping : sensorMappings) {
+    JsonObject sensor = sensorArray.createNestedObject();
+    sensor["central_id"] = mapping.rowid;
+    sensor["newId"] = mapping.newId;
+  }
+
+  // Adiciona os mapeamentos de atuadores ao array JSON
+  for (const DeviceIDMapping& mapping : actuatorMappings) {
+    JsonObject actuator = actuatorArray.createNestedObject();
+    actuator["central_id"] = mapping.rowid;
+    actuator["newId"] = mapping.newId;
+  }
+
+  // Serializa o documento JSON para uma string
+  String payload;
+  serializeJson(doc, payload);
+
+  Serial.println("ID Mapping Payload:");
+  Serial.println(payload);
+
+  String url = "http://" + centralIP + ":3000/atualizar-ESPRegisted";
+
+  sendPostRequest(url.c_str(), payload);
+}
+
+int addDevice(const char* path, JsonDocument doc) {
     String pin = doc["pin"];
     if (isPinUsed(path, pin)) {
         Serial.println("Pin is already in use");
-        return "Pin is already in use";  
+        return -2;  
     }
 
     if (!LittleFS.exists(path)) {
         File file = LittleFS.open(path, "w");
         if (!file) {
             Serial.println("Failed to open file for writing");
-            return "Failed to open file for writing";
+            return -3;
         }
         file.println("ID;Nome;Tipo;Pin;ModoOperacao;Valor;DataCriacao;DispositivoId;Unidade;isDeleted");
         file.close();
     }
+
+    //mostra o conteudo do doc
+    Serial.println("Doc-->");
+    serializeJson(doc, Serial);
+    Serial.println();
+    
 
     int lastId = readLastDeviceId(id_path);
     lastId++;
@@ -294,24 +413,37 @@ String addDevice(const char* path, JsonDocument& doc) {
     File file = LittleFS.open(path, "a");
     if (!file) {
         Serial.println("Failed to open file for appending");
-        return "Failed to open file for appending";
+        return -4;
     }
 
     String dataString = String(doc["id"].as<int>()) + ";" + String((const char*)doc["nome"]) + ";"
                         + String((const char*)doc["tipo"]) + ";" + String((const char*)doc["pin"]) + ";"
                         + String((const char*)doc["modoOperacao"]) + ";" + String((float)doc["valor"]) + ";"
-                        + String((const char*)doc["dtCriacao"]) + ";" + String((int)doc["dispositivoId"]) + ";"
+                        + getFormattedTime() + ";" + String((int)doc["dispositivoId"]) + ";"
                         + String((const char*)doc["unidade"]) + ";false";
 
     if (file.println(dataString)) {
-        Serial.println("Device data appended");
         updateLastDeviceId(id_path, lastId);
         file.close();
-        return "Device data appended successfully";
+        Serial.println("Device data appended successfully");
+        //mostar conteudo do ficheiro
+        File file = LittleFS.open(path, "r");
+        if (!file) {
+            Serial.println("Failed to open file for reading");
+            return -1;
+        }
+
+        while (file.available()) {
+            String line = file.readStringUntil('\n');
+            Serial.println(line);
+        }
+        file.close();
+
+        return lastId;
     } else {
         Serial.println("Append failed");
         file.close();
-        return "Append failed";
+        return -1;
     }
 }
 
@@ -331,7 +463,6 @@ int readLastDeviceId(const char* path) {
     String idStr = file.readStringUntil('\n');
     file.close();
 
-    Serial.print("Last Device Id -->");
     Serial.println(idStr);
 
     return idStr.toInt(); // Converte a string lida para int e retorna
@@ -346,7 +477,6 @@ void updateLastDeviceId(const char* path, int lastId) {
 
     file.println(lastId); // Escreve o novo último ID no arquivo
     file.close();
-    Serial.println("Last ID updated successfully to " + String(lastId));
 }
 
 
@@ -355,16 +485,14 @@ float readDeviceValue(int pin, String modoOperacao, String tipo) {
   if (modoOperacao == "Analogico") 
   {
     float analogValue = 1023 - analogRead(pin);
-    Serial.print("Analog read value PIN-->: ");
-    Serial.println(pin);
+   
     return analogValue;
   } 
   else if (modoOperacao == "Digital") {
 
     tipo.trim();
     int digitalValue = digitalRead(pin);
-    Serial.print("Digital read value: ");
-    Serial.println(digitalValue);
+   
     return digitalValue;
   }
   Serial.println("ModoOperacao not recognized, returning default value 0");
@@ -461,6 +589,10 @@ bool deleteDeviceById(const char* filePath, int targetID) {
       return false;
     }
     file.print(fileContent);
+    //debug
+    Serial.println("File content-->");
+    Serial.println(fileContent);
+
     file.close();
     return true;
   } else {
@@ -473,14 +605,14 @@ bool deleteDeviceById(const char* filePath, int targetID) {
 bool setAtuadorValue(int pin, float value, String tipo) {
 
   if (tipo == "Analogico") {
-    analogWrite(pin, (int)value);  // ESP8266 does support analogWrite on certain pins
+    analogWrite(pin, (int)value);  
     return true;
   } else if (tipo == "Digital") {
     digitalWrite(pin, (int)value > 0 ? HIGH : LOW);
     return true;
   }
   
-  return false;  // If type is neither 'Analogico' nor 'Digital'
+  return false; 
   
 }
 
